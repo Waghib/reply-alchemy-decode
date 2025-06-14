@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { MessageSquare, Copy, Sparkles, Zap, Brain, Crown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -61,7 +60,7 @@ const Dashboard = () => {
   }, [user, subscribed]);
 
   const updateFreeUsageCount = async (newCount: number) => {
-    if (!user) return;
+    if (!user) return false;
 
     try {
       const { error } = await supabase
@@ -74,12 +73,15 @@ const Dashboard = () => {
 
       if (error) {
         console.error('Error updating free usage:', error);
-        return;
+        return false;
       }
 
+      // Update local state immediately after successful database update
       setFreeUsageCount(newCount);
+      return true;
     } catch (error) {
       console.error('Error updating free usage:', error);
+      return false;
     }
   };
 
@@ -150,14 +152,25 @@ const Dashboard = () => {
         setIntent(randomIntent);
         setSuggestedReply(demoReply);
 
-        // Update free usage count in database
+        // Update free usage count in database and local state
         const newCount = freeUsageCount + 1;
-        await updateFreeUsageCount(newCount);
-
-        toast({
-          title: "Demo Analysis Complete",
-          description: `${FREE_USAGE_LIMIT - newCount} free analyses remaining. Upgrade for AI-powered results!`,
-        });
+        const updateSuccess = await updateFreeUsageCount(newCount);
+        
+        if (updateSuccess) {
+          const remainingAnalyses = FREE_USAGE_LIMIT - newCount;
+          toast({
+            title: "Demo Analysis Complete",
+            description: remainingAnalyses > 0 
+              ? `${remainingAnalyses} free analyses remaining. Upgrade for AI-powered results!`
+              : "You've used all your free analyses. Upgrade to Pro for unlimited AI-powered results!",
+          });
+        } else {
+          toast({
+            title: "Demo Analysis Complete",
+            description: "Note: Unable to update usage count. Please refresh and try again.",
+            variant: "destructive",
+          });
+        }
       }
 
     } catch (error: any) {
