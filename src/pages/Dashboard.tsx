@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { MessageSquare, Copy, Sparkles, Zap, Brain, Crown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ const Dashboard = () => {
   const [suggestedReply, setSuggestedReply] = useState("");
   const [selectedTone, setSelectedTone] = useState("friendly");
   const [freeUsageCount, setFreeUsageCount] = useState(0);
+  const [loadingUsage, setLoadingUsage] = useState(true);
   const { toast } = useToast();
   const { user, signOut, subscribed } = useAuth();
 
@@ -27,18 +29,57 @@ const Dashboard = () => {
     { id: "witty", label: "Witty", icon: "🎭", description: "Clever and engaging" }
   ];
 
-  // Load free usage count from localStorage
+  // Load free usage count from database
   useEffect(() => {
-    if (user && !subscribed) {
-      const savedCount = localStorage.getItem(`free_usage_${user.id}`);
-      setFreeUsageCount(savedCount ? parseInt(savedCount) : 0);
-    }
+    const loadFreeUsage = async () => {
+      if (!user || subscribed) {
+        setLoadingUsage(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('free_usage_tracking')
+          .select('usage_count')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+          console.error('Error loading free usage:', error);
+          return;
+        }
+
+        setFreeUsageCount(data?.usage_count || 0);
+      } catch (error) {
+        console.error('Error loading free usage:', error);
+      } finally {
+        setLoadingUsage(false);
+      }
+    };
+
+    loadFreeUsage();
   }, [user, subscribed]);
 
-  const updateFreeUsageCount = (newCount: number) => {
-    if (user) {
-      localStorage.setItem(`free_usage_${user.id}`, newCount.toString());
+  const updateFreeUsageCount = async (newCount: number) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('free_usage_tracking')
+        .upsert({
+          user_id: user.id,
+          usage_count: newCount,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error updating free usage:', error);
+        return;
+      }
+
       setFreeUsageCount(newCount);
+    } catch (error) {
+      console.error('Error updating free usage:', error);
     }
   };
 
@@ -109,9 +150,9 @@ const Dashboard = () => {
         setIntent(randomIntent);
         setSuggestedReply(demoReply);
 
-        // Update free usage count
+        // Update free usage count in database
         const newCount = freeUsageCount + 1;
-        updateFreeUsageCount(newCount);
+        await updateFreeUsageCount(newCount);
 
         toast({
           title: "Demo Analysis Complete",
@@ -202,7 +243,7 @@ const Dashboard = () => {
               ) : (
                 <div className="flex items-center space-x-2">
                   <Badge variant="outline">
-                    Free: {freeUsageCount}/{FREE_USAGE_LIMIT} used
+                    {loadingUsage ? "Loading..." : `Free: ${freeUsageCount}/${FREE_USAGE_LIMIT} used`}
                   </Badge>
                   <Button onClick={handleUpgrade} size="sm">
                     <Crown className="h-4 w-4 mr-2" />
@@ -272,7 +313,7 @@ const Dashboard = () => {
               />
               <Button 
                 onClick={analyzeMessage}
-                disabled={!message.trim() || isAnalyzing || (!subscribed && freeUsageCount >= FREE_USAGE_LIMIT)}
+                disabled={!message.trim() || isAnalyzing || (!subscribed && freeUsageCount >= FREE_USAGE_LIMIT) || loadingUsage}
                 className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
               >
                 {isAnalyzing ? (

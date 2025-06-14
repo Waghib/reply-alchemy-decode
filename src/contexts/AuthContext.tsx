@@ -99,15 +99,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       console.log('Starting sign out process...');
       
-      // Preserve free usage data before clearing localStorage
-      const freeUsageData: { [key: string]: string } = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('free_usage_')) {
-          freeUsageData[key] = localStorage.getItem(key) || '';
-        }
-      }
-      
       // Clear state immediately
       setUser(null);
       setSubscribed(false);
@@ -119,13 +110,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.error('Supabase sign out error:', error);
       }
       
-      // Clear localStorage but preserve free usage data
+      // Clear localStorage completely
       localStorage.clear();
-      
-      // Restore free usage data
-      Object.entries(freeUsageData).forEach(([key, value]) => {
-        localStorage.setItem(key, value);
-      });
       
       console.log('Sign out completed, redirecting...');
       
