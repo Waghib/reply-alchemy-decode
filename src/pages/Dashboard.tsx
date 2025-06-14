@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MessageSquare, Copy, Sparkles, Zap, Brain, Crown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,8 +15,11 @@ const Dashboard = () => {
   const [intent, setIntent] = useState("");
   const [suggestedReply, setSuggestedReply] = useState("");
   const [selectedTone, setSelectedTone] = useState("friendly");
+  const [freeUsageCount, setFreeUsageCount] = useState(0);
   const { toast } = useToast();
   const { user, signOut, subscribed } = useAuth();
+
+  const FREE_USAGE_LIMIT = 3; // Allow 3 free analyses
 
   const tones = [
     { id: "friendly", label: "Friendly", icon: "😊", description: "Warm and approachable" },
@@ -24,13 +27,29 @@ const Dashboard = () => {
     { id: "witty", label: "Witty", icon: "🎭", description: "Clever and engaging" }
   ];
 
+  // Load free usage count from localStorage
+  useEffect(() => {
+    if (user && !subscribed) {
+      const savedCount = localStorage.getItem(`free_usage_${user.id}`);
+      setFreeUsageCount(savedCount ? parseInt(savedCount) : 0);
+    }
+  }, [user, subscribed]);
+
+  const updateFreeUsageCount = (newCount: number) => {
+    if (user) {
+      localStorage.setItem(`free_usage_${user.id}`, newCount.toString());
+      setFreeUsageCount(newCount);
+    }
+  };
+
   const analyzeMessage = async () => {
     if (!message.trim()) return;
     
-    if (!subscribed) {
+    // Check free usage limit for non-subscribers
+    if (!subscribed && freeUsageCount >= FREE_USAGE_LIMIT) {
       toast({
-        title: "Upgrade Required",
-        description: "Please upgrade to Pro to analyze messages.",
+        title: "Free Limit Reached",
+        description: `You've used all ${FREE_USAGE_LIMIT} free analyses. Upgrade to Pro for unlimited usage.`,
         variant: "destructive",
       });
       return;
@@ -39,37 +58,65 @@ const Dashboard = () => {
     setIsAnalyzing(true);
     
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) {
-        throw new Error("Not authenticated");
-      }
+      if (subscribed) {
+        // Use the actual AI service for Pro users
+        const { data: session } = await supabase.auth.getSession();
+        if (!session.session) {
+          throw new Error("Not authenticated");
+        }
 
-      const { data, error } = await supabase.functions.invoke('analyze-message', {
-        body: { message, tone: selectedTone },
-        headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
-        },
-      });
-
-      if (error) throw error;
-
-      setIntent(data.intent);
-      setSuggestedReply(data.suggestedReply);
-
-      // Save the analysis to the database
-      const { error: saveError } = await supabase
-        .from('analyzed_messages')
-        .insert({
-          user_id: user?.id,
-          original_message: message,
-          detected_intent: data.intent,
-          suggested_reply: data.suggestedReply,
-          selected_tone: selectedTone,
+        const { data, error } = await supabase.functions.invoke('analyze-message', {
+          body: { message, tone: selectedTone },
+          headers: {
+            Authorization: `Bearer ${session.session.access_token}`,
+          },
         });
 
-      if (saveError) {
-        console.error('Error saving analysis:', saveError);
-        // Don't show error to user as the main functionality worked
+        if (error) throw error;
+
+        setIntent(data.intent);
+        setSuggestedReply(data.suggestedReply);
+
+        // Save the analysis to the database
+        const { error: saveError } = await supabase
+          .from('analyzed_messages')
+          .insert({
+            user_id: user?.id,
+            original_message: message,
+            detected_intent: data.intent,
+            suggested_reply: data.suggestedReply,
+            selected_tone: selectedTone,
+          });
+
+        if (saveError) {
+          console.error('Error saving analysis:', saveError);
+        }
+      } else {
+        // Provide demo responses for free users
+        const demoIntents = ["Business Inquiry", "Client Lead", "Casual Conversation", "Support Request"];
+        const demoReplies = {
+          friendly: "Thanks for reaching out! I'd be happy to help you with this. Let me know what specific information you need and I'll get back to you soon. 😊",
+          formal: "Thank you for your inquiry. I appreciate you taking the time to contact me. I will review your request and provide a comprehensive response within the next business day.",
+          witty: "Well hello there! 👋 Looks like you've got something interesting on your mind. I'm all ears (well, technically all eyes since this is text, but you get the idea)!"
+        };
+
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const randomIntent = demoIntents[Math.floor(Math.random() * demoIntents.length)];
+        const demoReply = demoReplies[selectedTone as keyof typeof demoReplies];
+
+        setIntent(randomIntent);
+        setSuggestedReply(demoReply);
+
+        // Update free usage count
+        const newCount = freeUsageCount + 1;
+        updateFreeUsageCount(newCount);
+
+        toast({
+          title: "Demo Analysis Complete",
+          description: `${FREE_USAGE_LIMIT - newCount} free analyses remaining. Upgrade for AI-powered results!`,
+        });
       }
 
     } catch (error: any) {
@@ -153,10 +200,15 @@ const Dashboard = () => {
                   Pro
                 </Badge>
               ) : (
-                <Button onClick={handleUpgrade} size="sm">
-                  <Crown className="h-4 w-4 mr-2" />
-                  Upgrade to Pro
-                </Button>
+                <div className="flex items-center space-x-2">
+                  <Badge variant="outline">
+                    Free: {freeUsageCount}/{FREE_USAGE_LIMIT} used
+                  </Badge>
+                  <Button onClick={handleUpgrade} size="sm">
+                    <Crown className="h-4 w-4 mr-2" />
+                    Upgrade to Pro
+                  </Button>
+                </div>
               )}
               <Button variant="outline" size="sm" onClick={signOut}>
                 <LogOut className="h-4 w-4 mr-2" />
@@ -170,17 +222,20 @@ const Dashboard = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="space-y-8">
-          {/* Subscription Notice */}
+          {/* Free vs Pro Notice */}
           {!subscribed && (
             <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-orange-800 dark:text-orange-300">
-                      Upgrade to unlock AI analysis
+                      {freeUsageCount >= FREE_USAGE_LIMIT ? "Free limit reached!" : "Free Demo Mode"}
                     </h3>
                     <p className="text-sm text-orange-600 dark:text-orange-400">
-                      Get unlimited message analysis for just $5/month
+                      {freeUsageCount >= FREE_USAGE_LIMIT 
+                        ? "Upgrade to Pro for unlimited AI-powered analysis" 
+                        : `${FREE_USAGE_LIMIT - freeUsageCount} demo analyses remaining. Pro users get unlimited AI-powered results!`
+                      }
                     </p>
                   </div>
                   <Button onClick={handleUpgrade}>
@@ -201,6 +256,11 @@ const Dashboard = () => {
               </CardTitle>
               <CardDescription>
                 Drop in any DM, email, or message you've received and I'll analyze it for you
+                {!subscribed && (
+                  <span className="block text-orange-600 dark:text-orange-400 mt-1">
+                    Demo mode: Get sample responses to test the feature
+                  </span>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -212,7 +272,7 @@ const Dashboard = () => {
               />
               <Button 
                 onClick={analyzeMessage}
-                disabled={!message.trim() || isAnalyzing || !subscribed}
+                disabled={!message.trim() || isAnalyzing || (!subscribed && freeUsageCount >= FREE_USAGE_LIMIT)}
                 className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
               >
                 {isAnalyzing ? (
@@ -223,7 +283,7 @@ const Dashboard = () => {
                 ) : (
                   <>
                     <Zap className="h-4 w-4 mr-2" />
-                    Analyze & Generate Reply
+                    {subscribed ? "Analyze & Generate Reply" : "Try Demo Analysis"}
                   </>
                 )}
               </Button>
@@ -236,7 +296,14 @@ const Dashboard = () => {
               {/* Intent Detection */}
               <Card className="border-0 shadow-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">Intent Detected</CardTitle>
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    Intent Detected
+                    {!subscribed && (
+                      <Badge variant="outline" className="text-xs">
+                        Demo Result
+                      </Badge>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Badge className={`${getIntentColor(intent)} px-3 py-1`}>
@@ -262,7 +329,6 @@ const Dashboard = () => {
                             : "hover:bg-slate-50 dark:hover:bg-slate-700"
                         }`}
                         onClick={() => setSelectedTone(tone.id)}
-                        disabled={!subscribed}
                       >
                         <span className="text-2xl">{tone.icon}</span>
                         <div className="text-center">
@@ -278,9 +344,16 @@ const Dashboard = () => {
               {/* Suggested Reply */}
               <Card className="border-0 shadow-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">Suggested Reply</CardTitle>
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    Suggested Reply
+                    {!subscribed && (
+                      <Badge variant="outline" className="text-xs">
+                        Demo Response
+                      </Badge>
+                    )}
+                  </CardTitle>
                   <CardDescription>
-                    AI-generated response in your selected tone
+                    {subscribed ? "AI-generated response in your selected tone" : "Sample response to demonstrate the feature"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -302,8 +375,8 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Message History */}
-          <MessageHistory />
+          {/* Message History - Only show for Pro users */}
+          {subscribed && <MessageHistory />}
         </div>
       </main>
     </div>
