@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { MessageSquare, Copy, Sparkles, Zap, Brain, Crown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { MessageHistory } from "@/components/MessageHistory";
 
 const Dashboard = () => {
   const [message, setMessage] = useState("");
@@ -55,6 +55,23 @@ const Dashboard = () => {
 
       setIntent(data.intent);
       setSuggestedReply(data.suggestedReply);
+
+      // Save the analysis to the database
+      const { error: saveError } = await supabase
+        .from('analyzed_messages')
+        .insert({
+          user_id: user?.id,
+          original_message: message,
+          detected_intent: data.intent,
+          suggested_reply: data.suggestedReply,
+          selected_tone: selectedTone,
+        });
+
+      if (saveError) {
+        console.error('Error saving analysis:', saveError);
+        // Don't show error to user as the main functionality worked
+      }
+
     } catch (error: any) {
       toast({
         title: "Error",
@@ -284,6 +301,9 @@ const Dashboard = () => {
               </Card>
             </div>
           )}
+
+          {/* Message History */}
+          <MessageHistory />
         </div>
       </main>
     </div>
