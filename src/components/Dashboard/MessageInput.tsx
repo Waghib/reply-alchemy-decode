@@ -36,8 +36,8 @@ const MessageInput = ({
   ];
 
   return (
-    <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm h-full">
-      <CardHeader className="pb-3">
+    <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm h-full flex flex-col">
+      <CardHeader className="pb-2 flex-shrink-0">
         <CardTitle className="flex items-center space-x-2 text-base">
           <Brain className="h-4 w-4 text-violet-600" />
           <span>Paste Your Message</span>
@@ -51,17 +51,17 @@ const MessageInput = ({
           )}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3 pt-0 flex flex-col h-full">
+      <CardContent className="flex-grow flex flex-col p-4 pt-0 space-y-3">
         <Textarea
           placeholder="Hey! I saw your work and I'm really interested in collaborating. Would love to discuss a potential project with you..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className="min-h-[120px] resize-none border-slate-200 dark:border-slate-700 focus:border-violet-500 dark:focus:border-violet-400 text-sm flex-grow"
-          rows={4}
+          className="h-24 resize-none border-slate-200 dark:border-slate-700 focus:border-violet-500 dark:focus:border-violet-400 text-sm"
+          rows={3}
         />
         
         {/* Inline Tone Selection */}
-        <div className="space-y-2">
+        <div className="space-y-2 flex-shrink-0">
           <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Tone:</label>
           <div className="flex gap-2">
             {tones.map((tone) => (
@@ -76,7 +76,7 @@ const MessageInput = ({
                 }`}
                 onClick={() => onToneSelect(tone.id)}
               >
-                <span className="mr-1 text-sm">{tone.icon}</span>
+                <span className="mr-1 text-xs">{tone.icon}</span>
                 {tone.label}
               </Button>
             ))}
@@ -86,7 +86,7 @@ const MessageInput = ({
         <Button 
           onClick={onAnalyze}
           disabled={!message.trim() || isAnalyzing || (!subscribed && freeUsageCount >= FREE_USAGE_LIMIT) || loadingUsage}
-          className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 mt-auto"
+          className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 flex-shrink-0"
           size="sm"
         >
           {isAnalyzing ? (

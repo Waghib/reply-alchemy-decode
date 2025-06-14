@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -103,7 +104,7 @@ const AnalysisSection = ({
   };
 
   return (
-    <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'} items-start`}>
+    <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'} h-96`}>
       {/* Input Section */}
       <div className="h-full">
         <MessageInput 
@@ -129,7 +130,7 @@ const AnalysisSection = ({
             onCopyReply={copyToClipboard}
           />
         ) : (
-          <div className="h-full min-h-[400px] flex items-center justify-center border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg">
+          <div className="h-full flex items-center justify-center border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg">
             <div className="text-center text-slate-500 dark:text-slate-400">
               <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                 <span className="text-xl">💬</span>
