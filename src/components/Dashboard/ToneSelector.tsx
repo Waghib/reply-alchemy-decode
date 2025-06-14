@@ -15,27 +15,27 @@ const ToneSelector = ({ selectedTone, onToneSelect }: ToneSelectorProps) => {
   ];
 
   return (
-    <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm h-fit">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-lg">Choose Your Tone</CardTitle>
+    <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Choose Your Tone</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 gap-2">
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {tones.map((tone) => (
             <Button
               key={tone.id}
               variant={selectedTone === tone.id ? "default" : "outline"}
-              className={`p-3 h-auto flex items-center justify-start space-x-3 text-left ${
+              className={`p-2 h-auto flex flex-col items-center justify-center text-center transition-all ${
                 selectedTone === tone.id 
                   ? "bg-violet-600 hover:bg-violet-700 text-white" 
                   : "hover:bg-slate-50 dark:hover:bg-slate-700"
               }`}
               onClick={() => onToneSelect(tone.id)}
             >
-              <span className="text-lg">{tone.icon}</span>
-              <div>
-                <div className="font-medium text-sm">{tone.label}</div>
-                <div className="text-xs opacity-70">{tone.description}</div>
+              <span className="text-lg mb-1">{tone.icon}</span>
+              <div className="space-y-0.5">
+                <div className="font-medium text-xs">{tone.label}</div>
+                <div className="text-[10px] opacity-70 leading-tight">{tone.description}</div>
               </div>
             </Button>
           ))}

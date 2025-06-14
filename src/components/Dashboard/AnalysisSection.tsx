@@ -1,7 +1,7 @@
-
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 import MessageInput from "./MessageInput";
 import ToneSelector from "./ToneSelector";
 import AnalysisResults from "./AnalysisResults";
@@ -29,6 +29,7 @@ const AnalysisSection = ({
   const [suggestedReply, setSuggestedReply] = useState("");
   const [selectedTone, setSelectedTone] = useState("friendly");
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const analyzeMessage = async () => {
     if (!message.trim()) return;
@@ -103,9 +104,9 @@ const AnalysisSection = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Left Column - Input and Controls */}
-      <div className="space-y-6">
+    <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
+      {/* Input Section */}
+      <div className="space-y-4">
         <MessageInput 
           message={message}
           setMessage={setMessage}
@@ -122,8 +123,8 @@ const AnalysisSection = ({
         />
       </div>
 
-      {/* Right Column - Results */}
-      <div className="space-y-6">
+      {/* Results Section */}
+      <div className="space-y-4">
         {intent ? (
           <AnalysisResults 
             intent={intent}
@@ -132,13 +133,13 @@ const AnalysisSection = ({
             onCopyReply={copyToClipboard}
           />
         ) : (
-          <div className="h-full flex items-center justify-center">
+          <div className="h-full min-h-[200px] flex items-center justify-center">
             <div className="text-center text-slate-500 dark:text-slate-400">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                <span className="text-2xl">💬</span>
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <span className="text-xl">💬</span>
               </div>
-              <p className="text-lg font-medium mb-2">Ready to analyze</p>
-              <p className="text-sm">Paste a message and click analyze to see the results here</p>
+              <p className="text-base font-medium mb-1">Ready to analyze</p>
+              <p className="text-sm">Paste a message and click analyze to see results</p>
             </div>
           </div>
         )}
