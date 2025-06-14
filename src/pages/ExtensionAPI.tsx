@@ -29,7 +29,7 @@ const ExtensionAPI = () => {
               intent: data.intent,
               suggestedReply: data.suggestedReply
             }
-          }, event.origin);
+          }, { targetOrigin: event.origin });
           
         } catch (error) {
           event.source?.postMessage({
@@ -38,7 +38,7 @@ const ExtensionAPI = () => {
               success: false,
               error: 'Analysis failed'
             }
-          }, event.origin);
+          }, { targetOrigin: event.origin });
         }
       }
     };
