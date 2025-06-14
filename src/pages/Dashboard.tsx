@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -128,20 +127,15 @@ const Dashboard = () => {
           console.error('Error saving analysis:', saveError);
         }
       } else {
-        const demoIntents = ["Business Inquiry", "Client Lead", "Casual Conversation", "Support Request"];
-        const demoReplies = {
-          friendly: "Thanks for reaching out! I'd be happy to help you with this. Let me know what specific information you need and I'll get back to you soon. 😊",
-          formal: "Thank you for your inquiry. I appreciate you taking the time to contact me. I will review your request and provide a comprehensive response within the next business day.",
-          witty: "Well hello there! 👋 Looks like you've got something interesting on your mind. I'm all ears (well, technically all eyes since this is text, but you get the idea)!"
-        };
+        // Use Gemini API for demo analysis
+        const { data, error } = await supabase.functions.invoke('generate-demo-reply', {
+          body: { message, tone: selectedTone },
+        });
 
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        if (error) throw error;
 
-        const randomIntent = demoIntents[Math.floor(Math.random() * demoIntents.length)];
-        const demoReply = demoReplies[selectedTone as keyof typeof demoReplies];
-
-        setIntent(randomIntent);
-        setSuggestedReply(demoReply);
+        setIntent(data.intent);
+        setSuggestedReply(data.suggestedReply);
 
         const newCount = freeUsageCount + 1;
         const updateSuccess = await updateFreeUsageCount(newCount);
@@ -151,7 +145,7 @@ const Dashboard = () => {
           toast({
             title: "Demo Analysis Complete",
             description: remainingAnalyses > 0 
-              ? `${remainingAnalyses} free analyses remaining. Upgrade for AI-powered results!`
+              ? `${remainingAnalyses} free analyses remaining. Upgrade for full AI features!`
               : "You've used all your free analyses. Upgrade to Pro for unlimited AI-powered results!",
           });
         } else {
