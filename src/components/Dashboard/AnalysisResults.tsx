@@ -1,5 +1,5 @@
 
-import { Copy } from "lucide-react";
+import { Copy, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,51 +26,55 @@ const AnalysisResults = ({ intent, suggestedReply, subscribed, onCopyReply }: An
   if (!intent) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Intent Detection */}
-      <Card className="border-0 shadow-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center justify-between">
-            Intent Detected
+      <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center space-x-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span>Intent Detected</span>
+            </CardTitle>
             {!subscribed && (
               <Badge variant="outline" className="text-xs">
-                Demo Result
+                Demo
               </Badge>
             )}
-          </CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
-          <Badge className={`${getIntentColor(intent)} px-3 py-1`}>
+          <Badge className={`${getIntentColor(intent)} px-3 py-1 text-sm`}>
             {intent}
           </Badge>
         </CardContent>
       </Card>
 
       {/* Suggested Reply */}
-      <Card className="border-0 shadow-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center justify-between">
-            Suggested Reply
+      <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Suggested Reply</CardTitle>
             {!subscribed && (
               <Badge variant="outline" className="text-xs">
-                Demo Response
+                Demo
               </Badge>
             )}
-          </CardTitle>
-          <CardDescription>
-            {subscribed ? "AI-generated response in your selected tone" : "Sample response to demonstrate the feature"}
+          </div>
+          <CardDescription className="text-xs">
+            {subscribed ? "AI-generated response in your selected tone" : "Sample response"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="p-4 bg-slate-50 dark:bg-slate-700 rounded-lg border-l-4 border-violet-500">
-            <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+            <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm">
               {suggestedReply}
             </p>
           </div>
           <Button 
             onClick={onCopyReply}
             variant="outline"
-            className="w-full md:w-auto"
+            className="w-full"
+            size="sm"
           >
             <Copy className="h-4 w-4 mr-2" />
             Copy Reply

@@ -212,42 +212,61 @@ const Dashboard = () => {
         onSignOut={signOut}
       />
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="space-y-8">
-          <FreeUsageNotice 
-            subscribed={subscribed}
-            freeUsageCount={freeUsageCount}
-            onUpgrade={handleUpgrade}
-          />
+      <main className="container mx-auto px-4 py-6 max-w-6xl">
+        <FreeUsageNotice 
+          subscribed={subscribed}
+          freeUsageCount={freeUsageCount}
+          onUpgrade={handleUpgrade}
+        />
 
-          <MessageInput 
-            message={message}
-            setMessage={setMessage}
-            isAnalyzing={isAnalyzing}
-            subscribed={subscribed}
-            freeUsageCount={freeUsageCount}
-            loadingUsage={loadingUsage}
-            onAnalyze={analyzeMessage}
-          />
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Column - Input and Controls */}
+          <div className="space-y-6">
+            <MessageInput 
+              message={message}
+              setMessage={setMessage}
+              isAnalyzing={isAnalyzing}
+              subscribed={subscribed}
+              freeUsageCount={freeUsageCount}
+              loadingUsage={loadingUsage}
+              onAnalyze={analyzeMessage}
+            />
 
-          {intent && (
-            <div className="space-y-6">
+            <ToneSelector 
+              selectedTone={selectedTone}
+              onToneSelect={setSelectedTone}
+            />
+          </div>
+
+          {/* Right Column - Results */}
+          <div className="space-y-6">
+            {intent ? (
               <AnalysisResults 
                 intent={intent}
                 suggestedReply={suggestedReply}
                 subscribed={subscribed}
                 onCopyReply={copyToClipboard}
               />
-
-              <ToneSelector 
-                selectedTone={selectedTone}
-                onToneSelect={setSelectedTone}
-              />
-            </div>
-          )}
-
-          {subscribed && <MessageHistory />}
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center text-slate-500 dark:text-slate-400">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                    <span className="text-2xl">💬</span>
+                  </div>
+                  <p className="text-lg font-medium mb-2">Ready to analyze</p>
+                  <p className="text-sm">Paste a message and click analyze to see the results here</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Message History - Full Width Below */}
+        {subscribed && (
+          <div className="mt-8">
+            <MessageHistory />
+          </div>
+        )}
       </main>
     </div>
   );

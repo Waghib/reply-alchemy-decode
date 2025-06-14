@@ -26,16 +26,16 @@ const MessageInput = ({
   const FREE_USAGE_LIMIT = 3;
 
   return (
-    <Card className="border-0 shadow-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
+    <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm h-fit">
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center space-x-2 text-lg">
           <Brain className="h-5 w-5 text-violet-600" />
           <span>Paste Your Message</span>
         </CardTitle>
-        <CardDescription>
-          Drop in any DM, email, or message you've received and I'll analyze it for you
+        <CardDescription className="text-sm">
+          Drop in any DM, email, or message you've received
           {!subscribed && (
-            <span className="block text-orange-600 dark:text-orange-400 mt-1">
+            <span className="block text-orange-600 dark:text-orange-400 mt-1 text-xs">
               Demo mode: Get sample responses to test the feature
             </span>
           )}
@@ -46,12 +46,13 @@ const MessageInput = ({
           placeholder="Hey! I saw your work and I'm really interested in collaborating. Would love to discuss a potential project with you..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className="min-h-[120px] resize-none border-slate-200 dark:border-slate-700 focus:border-violet-500 dark:focus:border-violet-400"
+          className="min-h-[100px] resize-none border-slate-200 dark:border-slate-700 focus:border-violet-500 dark:focus:border-violet-400 text-sm"
+          rows={4}
         />
         <Button 
           onClick={onAnalyze}
           disabled={!message.trim() || isAnalyzing || (!subscribed && freeUsageCount >= FREE_USAGE_LIMIT) || loadingUsage}
-          className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
+          className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700"
         >
           {isAnalyzing ? (
             <>
