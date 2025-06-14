@@ -1,7 +1,6 @@
-
 # DM Decoder - AI Message Analysis & Reply Suggestions
 
-**Live App**: [https://dm-decoder.lovable.app](https://dm-decoder.lovable.app)
+**Live App**: [https://reply-mind.lovable.app](https://reply-mind.lovable.app)
 
 ## Overview
 
@@ -133,7 +132,7 @@ src/
 
 The app is deployed on Lovable's platform and automatically updates with changes pushed to the main branch.
 
-**Live URL**: [https://dm-decoder.lovable.app](https://dm-decoder.lovable.app)
+**Live URL**: [https://reply-mind.lovable.app](https://reply-mind.lovable.app)
 
 ## Usage
 
@@ -170,7 +169,7 @@ This project is created with [Lovable](https://lovable.dev) and uses modern web 
 
 ## Support
 
-For support or questions about DM Decoder, please visit our live application at [https://dm-decoder.lovable.app](https://dm-decoder.lovable.app).
+For support or questions about DM Decoder, please visit our live application at [https://reply-mind.lovable.app](https://reply-mind.lovable.app).
 
 ---
 
