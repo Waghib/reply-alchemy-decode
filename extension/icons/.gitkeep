@@ -1,0 +1,10 @@
+
+# Icons Folder
+
+Place your extension icons here:
+- icon16.png (16x16px)
+- icon32.png (32x32px) 
+- icon48.png (48x48px)
+- icon128.png (128x128px)
+
+For now, you can use placeholder icons or convert your existing app logo to these sizes.

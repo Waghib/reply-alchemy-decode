@@ -1,0 +1,21 @@
+
+{
+  "name": "dm-decoder-extension",
+  "version": "1.0.0",
+  "description": "Browser extension for DM Decoder - AI message analysis and reply suggestions",
+  "scripts": {
+    "build": "node build.js",
+    "pack": "npm run build"
+  },
+  "devDependencies": {
+    "archiver": "^5.3.1"
+  },
+  "keywords": [
+    "ai",
+    "message-analysis",
+    "chrome-extension",
+    "productivity"
+  ],
+  "author": "DM Decoder Team",
+  "license": "MIT"
+}
