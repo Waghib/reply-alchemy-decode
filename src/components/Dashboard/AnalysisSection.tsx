@@ -1,9 +1,9 @@
+
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import MessageInput from "./MessageInput";
-import ToneSelector from "./ToneSelector";
 import AnalysisResults from "./AnalysisResults";
 
 interface AnalysisSectionProps {
@@ -106,7 +106,7 @@ const AnalysisSection = ({
   return (
     <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
       {/* Input Section */}
-      <div className="space-y-4">
+      <div>
         <MessageInput 
           message={message}
           setMessage={setMessage}
@@ -114,17 +114,14 @@ const AnalysisSection = ({
           subscribed={subscribed}
           freeUsageCount={freeUsageCount}
           loadingUsage={loadingUsage}
-          onAnalyze={analyzeMessage}
-        />
-
-        <ToneSelector 
           selectedTone={selectedTone}
           onToneSelect={setSelectedTone}
+          onAnalyze={analyzeMessage}
         />
       </div>
 
       {/* Results Section */}
-      <div className="space-y-4">
+      <div>
         {intent ? (
           <AnalysisResults 
             intent={intent}

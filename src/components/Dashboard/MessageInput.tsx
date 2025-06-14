@@ -11,6 +11,8 @@ interface MessageInputProps {
   subscribed: boolean;
   freeUsageCount: number;
   loadingUsage: boolean;
+  selectedTone: string;
+  onToneSelect: (tone: string) => void;
   onAnalyze: () => void;
 }
 
@@ -20,10 +22,18 @@ const MessageInput = ({
   isAnalyzing, 
   subscribed, 
   freeUsageCount, 
-  loadingUsage, 
+  loadingUsage,
+  selectedTone,
+  onToneSelect,
   onAnalyze 
 }: MessageInputProps) => {
   const FREE_USAGE_LIMIT = 3;
+
+  const tones = [
+    { id: "friendly", label: "Friendly", icon: "😊" },
+    { id: "formal", label: "Formal", icon: "👔" },
+    { id: "witty", label: "Witty", icon: "🎭" }
+  ];
 
   return (
     <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
@@ -46,9 +56,33 @@ const MessageInput = ({
           placeholder="Hey! I saw your work and I'm really interested in collaborating. Would love to discuss a potential project with you..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          className="min-h-[80px] resize-none border-slate-200 dark:border-slate-700 focus:border-violet-500 dark:focus:border-violet-400 text-sm"
-          rows={3}
+          className="min-h-[60px] resize-none border-slate-200 dark:border-slate-700 focus:border-violet-500 dark:focus:border-violet-400 text-sm"
+          rows={2}
         />
+        
+        {/* Inline Tone Selection */}
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Tone:</label>
+          <div className="flex gap-2">
+            {tones.map((tone) => (
+              <Button
+                key={tone.id}
+                variant={selectedTone === tone.id ? "default" : "outline"}
+                size="sm"
+                className={`flex-1 h-8 text-xs transition-all ${
+                  selectedTone === tone.id 
+                    ? "bg-violet-600 hover:bg-violet-700 text-white" 
+                    : "hover:bg-slate-50 dark:hover:bg-slate-700"
+                }`}
+                onClick={() => onToneSelect(tone.id)}
+              >
+                <span className="mr-1 text-sm">{tone.icon}</span>
+                {tone.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
         <Button 
           onClick={onAnalyze}
           disabled={!message.trim() || isAnalyzing || (!subscribed && freeUsageCount >= FREE_USAGE_LIMIT) || loadingUsage}
