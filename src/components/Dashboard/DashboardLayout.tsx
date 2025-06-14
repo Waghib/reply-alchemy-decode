@@ -61,20 +61,20 @@ const DashboardLayout = ({
         onSignOut={onSignOut}
       />
 
-      <main className="container mx-auto px-4 py-6 max-w-6xl">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-6xl">
         <FreeUsageNotice 
           subscribed={subscribed}
           freeUsageCount={freeUsageCount}
           onUpgrade={handleUpgrade}
         />
 
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           {children}
         </div>
 
         {/* Message History - Full Width Below */}
         {subscribed && (
-          <div className="mt-8">
+          <div className="mt-6 sm:mt-8">
             <MessageHistory />
           </div>
         )}

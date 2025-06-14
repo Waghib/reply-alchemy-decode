@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,14 +72,14 @@ export const MessageHistory = () => {
     return (
       <Card className="border-0 shadow-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Clock className="h-5 w-5 text-violet-600" />
+          <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
+            <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-violet-600" />
             <span>Recent Analyses</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+          <div className="flex items-center justify-center py-6 sm:py-8">
+            <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-violet-600"></div>
           </div>
         </CardContent>
       </Card>
@@ -91,18 +90,18 @@ export const MessageHistory = () => {
     return (
       <Card className="border-0 shadow-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Clock className="h-5 w-5 text-violet-600" />
+          <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
+            <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-violet-600" />
             <span>Recent Analyses</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
             Your analyzed messages will appear here
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-slate-500 dark:text-slate-400">
-            <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No analyses yet. Start by analyzing your first message!</p>
+          <div className="text-center py-6 sm:py-8 text-slate-500 dark:text-slate-400">
+            <MessageSquare className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 opacity-50" />
+            <p className="text-sm sm:text-base">No analyses yet. Start by analyzing your first message!</p>
           </div>
         </CardContent>
       </Card>
@@ -112,17 +111,17 @@ export const MessageHistory = () => {
   return (
     <Card className="border-0 shadow-lg bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Clock className="h-5 w-5 text-violet-600" />
+        <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
+          <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-violet-600" />
           <span>Recent Analyses</span>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs sm:text-sm">
           Your last 10 analyzed messages
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 sm:space-y-4">
         {messages.map((message) => (
-          <div key={message.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 space-y-3">
+          <div key={message.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
             <div className="flex items-center justify-between">
               <Badge className={`${getIntentColor(message.detected_intent)} px-2 py-1 text-xs`}>
                 {message.detected_intent}
@@ -134,23 +133,24 @@ export const MessageHistory = () => {
             
             <div className="space-y-2">
               <div>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Original Message:</p>
-                <p className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 p-2 rounded text-left">
+                <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">Original Message:</p>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 p-2 rounded text-left">
                   {message.original_message.substring(0, 100)}
                   {message.original_message.length > 100 && "..."}
                 </p>
               </div>
               
               <div>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Suggested Reply ({message.selected_tone}):</p>
+                <p className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">Suggested Reply ({message.selected_tone}):</p>
                 <div className="flex items-start space-x-2">
-                  <p className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 p-2 rounded flex-1 text-left">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 p-2 rounded flex-1 text-left">
                     {message.suggested_reply}
                   </p>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => copyToClipboard(message.suggested_reply)}
+                    className="h-8 w-8 p-0 flex-shrink-0"
                   >
                     <Copy className="h-3 w-3" />
                   </Button>
