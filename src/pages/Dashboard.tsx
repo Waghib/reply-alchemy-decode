@@ -64,6 +64,8 @@ const Dashboard = () => {
           user_id: user.id,
           usage_count: newCount,
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
         });
 
       if (error) {
