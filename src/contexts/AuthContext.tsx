@@ -75,6 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
       setUser(session?.user ?? null);
       setLoading(false);
       
@@ -95,8 +96,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSubscribed(false);
+    try {
+      console.log('Signing out...');
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        throw error;
+      }
+      
+      // Clear state immediately
+      setUser(null);
+      setSubscribed(false);
+      console.log('Sign out successful');
+      
+      // Redirect to home page
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      // Force redirect even if there's an error
+      window.location.href = '/';
+    }
   };
 
   return (
