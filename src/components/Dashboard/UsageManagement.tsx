@@ -52,7 +52,7 @@ export const useUsageManagement = ({ user, subscribed, onUsageUpdate }: UsageMan
   }, [user, subscribed, onUsageUpdate]);
 
   const updateFreeUsageCount = async (newCount: number) => {
-    if (!user) return false;
+    if (!user) return true; // Return true for non-authenticated users to prevent blocking
 
     try {
       const { error } = await supabase
@@ -67,7 +67,8 @@ export const useUsageManagement = ({ user, subscribed, onUsageUpdate }: UsageMan
 
       if (error) {
         console.error('Error updating free usage:', error);
-        return false;
+        // Don't block the user experience, just log the error
+        return true;
       }
 
       setFreeUsageCount(newCount);
@@ -75,7 +76,8 @@ export const useUsageManagement = ({ user, subscribed, onUsageUpdate }: UsageMan
       return true;
     } catch (error) {
       console.error('Error updating free usage:', error);
-      return false;
+      // Don't block the user experience
+      return true;
     }
   };
 
@@ -93,23 +95,15 @@ export const useUsageManagement = ({ user, subscribed, onUsageUpdate }: UsageMan
 
   const handleDemoUsage = async () => {
     const newCount = freeUsageCount + 1;
-    const updateSuccess = await updateFreeUsageCount(newCount);
+    await updateFreeUsageCount(newCount);
     
-    if (updateSuccess) {
-      const remainingAnalyses = FREE_USAGE_LIMIT - newCount;
-      toast({
-        title: "Demo Analysis Complete",
-        description: remainingAnalyses > 0 
-          ? `${remainingAnalyses} free analyses remaining. Upgrade for full AI features!`
-          : "You've used all your free analyses. Upgrade to Pro for unlimited AI-powered results!",
-      });
-    } else {
-      toast({
-        title: "Demo Analysis Complete",
-        description: "Note: Unable to update usage count. Please refresh and try again.",
-        variant: "destructive",
-      });
-    }
+    const remainingAnalyses = FREE_USAGE_LIMIT - newCount;
+    toast({
+      title: "Demo Analysis Complete",
+      description: remainingAnalyses > 0 
+        ? `${remainingAnalyses} free analyses remaining. Upgrade for full AI features!`
+        : "You've used all your free analyses. Upgrade to Pro for unlimited AI-powered results!",
+    });
   };
 
   return {
