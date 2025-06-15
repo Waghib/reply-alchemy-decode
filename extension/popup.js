@@ -1,4 +1,3 @@
-
 // Popup script for DM Decoder extension
 let currentUser = null;
 let freeUsageCount = 0;
@@ -11,9 +10,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function checkAuthStatus() {
   try {
-    // Check if user is authenticated by calling the web app
+    // First try to check via direct web app API
     const response = await fetch('https://reply-mind.lovable.app/api/auth/check', {
-      credentials: 'include'
+      credentials: 'include',
+      mode: 'cors'
     });
     
     if (response.ok) {
@@ -27,10 +27,67 @@ async function checkAuthStatus() {
       }
     }
   } catch (error) {
-    console.log('Not authenticated or web app not accessible');
+    console.log('Direct API check failed, trying iframe method...');
   }
   
-  showAuthSection();
+  // Fallback: Try to check via iframe communication
+  try {
+    await checkAuthViaIframe();
+  } catch (error) {
+    console.log('Iframe auth check failed:', error);
+    showAuthSection();
+  }
+}
+
+async function checkAuthViaIframe() {
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://reply-mind.lovable.app';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Auth check timeout'));
+    }, 5000);
+    
+    const cleanup = () => {
+      clearTimeout(timeout);
+      window.removeEventListener('message', messageHandler);
+      if (iframe.parentNode) {
+        document.body.removeChild(iframe);
+      }
+    };
+    
+    const messageHandler = async (event) => {
+      if (event.origin !== 'https://reply-mind.lovable.app') return;
+      
+      if (event.data.type === 'EXTENSION_API_RESPONSE' && event.data.success) {
+        cleanup();
+        
+        if (event.data.data.authenticated) {
+          currentUser = event.data.data.user;
+          subscribed = event.data.data.subscribed || false;
+          await loadUsageData();
+          showMainSection();
+          resolve();
+        } else {
+          showAuthSection();
+          resolve();
+        }
+      }
+    };
+    
+    window.addEventListener('message', messageHandler);
+    
+    iframe.onload = () => {
+      iframe.contentWindow.postMessage({
+        type: 'EXTENSION_API_REQUEST',
+        path: '/api/auth/check',
+        method: 'GET'
+      }, 'https://reply-mind.lovable.app');
+    };
+  });
 }
 
 async function loadUsageData() {
@@ -83,13 +140,17 @@ function showAuthSection() {
 function showMainSection() {
   document.getElementById('auth-section').classList.add('hidden');
   document.getElementById('main-section').classList.remove('hidden');
+  updateUsageDisplay();
 }
 
 function setupEventListeners() {
   // Authentication
   document.getElementById('login-btn').addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://reply-mind.lovable.app' });
-    window.close();
+    // Check auth status after a delay to allow for login
+    setTimeout(() => {
+      checkAuthStatus();
+    }, 2000);
   });
   
   document.getElementById('sign-out-btn').addEventListener('click', async () => {
@@ -275,3 +336,15 @@ document.addEventListener('visibilitychange', () => {
     checkAuthStatus();
   }
 });
+
+// Also check auth status when the popup window gets focus
+window.addEventListener('focus', () => {
+  checkAuthStatus();
+});
+
+// Check auth status periodically when popup is open
+setInterval(() => {
+  if (!document.hidden) {
+    checkAuthStatus();
+  }
+}, 3000);

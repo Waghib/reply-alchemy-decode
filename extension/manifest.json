@@ -28,7 +28,8 @@
         "https://x.com/*"
       ],
       "js": ["content.js"],
-      "css": ["content.css"]
+      "css": ["content.css"],
+      "type": "module"
     }
   ],
   "action": {
@@ -49,7 +50,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["popup.html", "content.css"],
+      "resources": ["popup.html", "content.css", "modules/*.js"],
       "matches": ["<all_urls>"]
     }
   ]
