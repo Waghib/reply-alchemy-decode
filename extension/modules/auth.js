@@ -41,6 +41,14 @@ export class AuthModule {
   async signIn(email, password) {
     console.log('Attempting sign in for:', email);
     
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+
+    if (password.length < 6) {
+      throw new Error('Password must be at least 6 characters long');
+    }
+    
     try {
       const { data, error } = await this.supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -52,13 +60,13 @@ export class AuthModule {
         throw new Error(this.getReadableError(error));
       }
       
-      if (data.user) {
+      if (data.user && data.session) {
         this.currentUser = data.user;
         console.log('Sign in successful:', this.currentUser.email);
-        return { success: true, user: data.user };
+        return { success: true, user: data.user, session: data.session };
       }
       
-      throw new Error('Sign in failed - no user returned');
+      throw new Error('Sign in failed - no user or session returned');
       
     } catch (error) {
       console.error('Sign in error:', error);
@@ -68,6 +76,19 @@ export class AuthModule {
 
   async signUp(email, password) {
     console.log('Attempting sign up for:', email);
+    
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+
+    if (password.length < 6) {
+      throw new Error('Password must be at least 6 characters long');
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Please enter a valid email address');
+    }
     
     try {
       const { data, error } = await this.supabase.auth.signUp({
@@ -81,20 +102,20 @@ export class AuthModule {
       }
       
       if (data.user) {
-        this.currentUser = data.user;
-        console.log('Sign up successful:', this.currentUser.email);
+        console.log('Sign up successful:', data.user.email);
         
         // Check if email confirmation is required
-        if (!data.session) {
+        if (!data.session && data.user && !data.user.email_confirmed_at) {
           return { 
             success: true, 
             user: data.user, 
             needsConfirmation: true,
-            message: 'Please check your email to confirm your account.' 
+            message: 'Please check your email to confirm your account before signing in.' 
           };
         }
         
-        return { success: true, user: data.user };
+        this.currentUser = data.user;
+        return { success: true, user: data.user, session: data.session };
       }
       
       throw new Error('Sign up failed - no user returned');
@@ -128,6 +149,9 @@ export class AuthModule {
     }
     if (message.includes('Too many requests')) {
       return 'Too many attempts. Please wait a moment before trying again.';
+    }
+    if (message.includes('signup disabled')) {
+      return 'Account registration is currently disabled. Please contact support.';
     }
     
     return message;
@@ -171,6 +195,12 @@ export class AuthModule {
   onAuthStateChange(callback) {
     return this.supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth state change:', event, session?.user?.email);
+      if (event === 'SIGNED_IN' && session?.user) {
+        this.currentUser = session.user;
+      } else if (event === 'SIGNED_OUT') {
+        this.currentUser = null;
+        this.subscribed = false;
+      }
       callback(event, session);
     });
   }

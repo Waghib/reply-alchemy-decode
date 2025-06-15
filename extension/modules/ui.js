@@ -121,11 +121,8 @@ export class UIModule {
 
   clearAuthForm() {
     console.log('Clearing auth form');
-    // Only clear if not currently submitting
-    if (!this.isFormSubmitting) {
-      if (this.elements.emailInput) this.elements.emailInput.value = '';
-      if (this.elements.passwordInput) this.elements.passwordInput.value = '';
-    }
+    if (this.elements.emailInput) this.elements.emailInput.value = '';
+    if (this.elements.passwordInput) this.elements.passwordInput.value = '';
   }
 
   getFormData() {

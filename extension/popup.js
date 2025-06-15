@@ -1,4 +1,3 @@
-
 import { AuthModule } from './modules/auth.js';
 import { UIModule } from './modules/ui.js';
 import { UsageModule } from './modules/usage.js';
@@ -71,6 +70,9 @@ async function handleAuth(event) {
   
   console.log('Auth attempt:', { email, isSignUp, passwordLength: password.length });
   
+  // Clear any previous errors
+  uiModule.clearError();
+  
   // Validate inputs
   if (!email || !password) {
     uiModule.showError('Please enter both email and password.');
@@ -82,7 +84,6 @@ async function handleAuth(event) {
     return;
   }
   
-  uiModule.clearError();
   uiModule.setAuthSubmitState(true, isSignUp);
   
   try {
@@ -90,8 +91,10 @@ async function handleAuth(event) {
     
     if (isSignUp) {
       result = await authModule.signUp(email, password);
+      console.log('Sign up result:', result);
     } else {
       result = await authModule.signIn(email, password);
+      console.log('Sign in result:', result);
     }
     
     if (result.success) {
@@ -99,7 +102,10 @@ async function handleAuth(event) {
       
       if (result.needsConfirmation) {
         uiModule.showSuccess(result.message);
-        uiModule.setAuthSubmitState(false, isSignUp);
+        // Switch to sign in mode after successful sign up with confirmation needed
+        authModule.isSignInMode = true;
+        uiModule.updateAuthMode(true);
+        uiModule.clearAuthForm();
         return;
       }
       
@@ -121,8 +127,10 @@ async function handleAuth(event) {
 function toggleAuthMode(event) {
   event.preventDefault();
   console.log('Auth toggle clicked');
+  uiModule.clearError();
   const isSignInMode = authModule.toggleAuthMode();
   uiModule.updateAuthMode(isSignInMode);
+  uiModule.clearAuthForm();
 }
 
 async function analyzeMessage() {
