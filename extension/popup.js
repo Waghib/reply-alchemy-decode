@@ -1,8 +1,9 @@
 
-// Popup script for DM Decoder extension
+// Popup script for DM Decoder extension with built-in authentication
 let currentUser = null;
 let freeUsageCount = 0;
 let subscribed = false;
+let isSignInMode = true;
 
 document.addEventListener('DOMContentLoaded', async () => {
   await checkAuthStatus();
@@ -10,18 +11,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function checkAuthStatus() {
-  console.log('Starting auth check...');
+  console.log('Checking auth status...');
   
   try {
-    // Try multiple methods to check authentication
-    const authResult = await tryMultipleAuthMethods();
+    // Check if user data is stored locally
+    const stored = await new Promise(resolve => {
+      chrome.storage.local.get(['currentUser', 'userToken'], resolve);
+    });
     
-    if (authResult && authResult.authenticated) {
-      currentUser = authResult.user;
-      subscribed = authResult.subscribed || false;
+    if (stored.currentUser && stored.userToken) {
+      currentUser = stored.currentUser;
+      subscribed = stored.currentUser.subscribed || false;
       await loadUsageData();
       showMainSection();
-      console.log('User authenticated:', currentUser);
+      console.log('User authenticated from storage:', currentUser);
     } else {
       console.log('User not authenticated');
       showAuthSection();
@@ -32,129 +35,122 @@ async function checkAuthStatus() {
   }
 }
 
-async function tryMultipleAuthMethods() {
-  console.log('Trying multiple auth methods...');
+async function handleAuth(email, password, isSignUp = false) {
+  const errorEl = document.getElementById('error-message');
+  const submitBtn = document.getElementById('auth-submit');
   
-  // Method 1: Direct API call with credentials
+  // Clear previous errors
+  errorEl.classList.add('hidden');
+  submitBtn.disabled = true;
+  submitBtn.textContent = isSignUp ? 'Creating Account...' : 'Signing In...';
+  
   try {
-    console.log('Trying direct API call...');
-    const response = await fetch('https://reply-mind.lovable.app/api/auth/check', {
-      credentials: 'include',
-      mode: 'cors',
+    const response = await fetch('https://aodowsouzxzjuvroqule.supabase.co/auth/v1/token?grant_type=password', {
+      method: 'POST',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZG93c291enh6anV2cm9xdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk5MDA1MjQsImV4cCI6MjA2NTQ3NjUyNH0.Ez5lIB3pF2Hguyn5BgPKhUUbSwL977-edi-wgrHFca4'
+      },
+      body: JSON.stringify({
+        email: email,
+        password: password
+      })
     });
     
     if (response.ok) {
-      const data = await response.json();
-      console.log('Direct API response:', data);
-      if (data.authenticated) {
-        return data;
-      }
-    }
-  } catch (error) {
-    console.log('Direct API method failed:', error);
-  }
-  
-  // Method 2: Iframe communication
-  try {
-    console.log('Trying iframe method...');
-    const iframeResult = await checkAuthViaIframe();
-    if (iframeResult) {
-      return iframeResult;
-    }
-  } catch (error) {
-    console.log('Iframe method failed:', error);
-  }
-  
-  // Method 3: Check if user is on dashboard page
-  try {
-    console.log('Trying dashboard check...');
-    const dashboardResult = await checkIfOnDashboard();
-    if (dashboardResult) {
-      return dashboardResult;
-    }
-  } catch (error) {
-    console.log('Dashboard check failed:', error);
-  }
-  
-  return null;
-}
-
-async function checkAuthViaIframe() {
-  return new Promise((resolve, reject) => {
-    const iframe = document.createElement('iframe');
-    iframe.src = 'https://reply-mind.lovable.app/dashboard';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    
-    const timeout = setTimeout(() => {
-      cleanup();
-      resolve(null);
-    }, 8000);
-    
-    const cleanup = () => {
-      clearTimeout(timeout);
-      window.removeEventListener('message', messageHandler);
-      if (iframe.parentNode) {
-        document.body.removeChild(iframe);
-      }
-    };
-    
-    const messageHandler = async (event) => {
-      if (event.origin !== 'https://reply-mind.lovable.app') return;
+      const authData = await response.json();
       
-      console.log('Received iframe message:', event.data);
+      // Store user data
+      currentUser = {
+        id: authData.user.id,
+        email: authData.user.email,
+        subscribed: false // Default to false, can be updated later
+      };
       
-      if (event.data.type === 'EXTENSION_API_RESPONSE') {
-        cleanup();
-        
-        if (event.data.success && event.data.data.authenticated) {
-          resolve(event.data.data);
-        } else {
-          resolve(null);
-        }
-      }
-    };
-    
-    window.addEventListener('message', messageHandler);
-    
-    iframe.onload = () => {
-      console.log('Iframe loaded, sending auth check request...');
-      setTimeout(() => {
-        iframe.contentWindow.postMessage({
-          type: 'EXTENSION_API_REQUEST',
-          path: '/api/auth/check',
-          method: 'GET'
-        }, 'https://reply-mind.lovable.app');
-      }, 2000);
-    };
-    
-    iframe.onerror = () => {
-      cleanup();
-      resolve(null);
-    };
-  });
-}
-
-async function checkIfOnDashboard() {
-  return new Promise((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const activeTab = tabs[0];
-      if (activeTab && activeTab.url && activeTab.url.includes('reply-mind.lovable.app')) {
-        // User is on our website, likely authenticated
-        resolve({
-          authenticated: true,
-          user: { email: 'user@example.com' }, // Placeholder
-          subscribed: false
-        });
+      // Store in chrome storage
+      await new Promise(resolve => {
+        chrome.storage.local.set({
+          currentUser: currentUser,
+          userToken: authData.access_token
+        }, resolve);
+      });
+      
+      await loadUsageData();
+      showMainSection();
+      
+    } else {
+      // If sign in failed and this was a sign in attempt, try sign up
+      if (!isSignUp) {
+        return await handleSignUp(email, password);
       } else {
-        resolve(null);
+        throw new Error('Authentication failed');
       }
+    }
+    
+  } catch (error) {
+    console.error('Auth error:', error);
+    
+    if (!isSignUp) {
+      // Try sign up if sign in failed
+      return await handleSignUp(email, password);
+    }
+    
+    showError('Authentication failed. Please check your credentials and try again.');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = isSignUp ? 'Create Account' : 'Sign In';
+  }
+}
+
+async function handleSignUp(email, password) {
+  try {
+    const response = await fetch('https://aodowsouzxzjuvroqule.supabase.co/auth/v1/signup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZG93c291enh6anV2cm9xdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk5MDA1MjQsImV4cCI6MjA2NTQ3NjUyNH0.Ez5lIB3pF2Hguyn5BgPKhUUbSwL977-edi-wgrHFca4'
+      },
+      body: JSON.stringify({
+        email: email,
+        password: password
+      })
     });
-  });
+    
+    if (response.ok) {
+      const authData = await response.json();
+      
+      // Store user data
+      currentUser = {
+        id: authData.user.id,
+        email: authData.user.email,
+        subscribed: false
+      };
+      
+      // Store in chrome storage
+      await new Promise(resolve => {
+        chrome.storage.local.set({
+          currentUser: currentUser,
+          userToken: authData.access_token
+        }, resolve);
+      });
+      
+      await loadUsageData();
+      showMainSection();
+      
+    } else {
+      throw new Error('Account creation failed');
+    }
+    
+  } catch (error) {
+    console.error('Sign up error:', error);
+    showError('Failed to create account. Please try again.');
+  }
+}
+
+function showError(message) {
+  const errorEl = document.getElementById('error-message');
+  errorEl.textContent = message;
+  errorEl.classList.remove('hidden');
 }
 
 async function loadUsageData() {
@@ -188,9 +184,11 @@ function updateUsageData() {
 function updateUsageDisplay() {
   const dailyCountEl = document.getElementById('daily-count');
   const remainingCountEl = document.getElementById('remaining-count');
+  const userEmailEl = document.getElementById('user-email');
   
   if (dailyCountEl) dailyCountEl.textContent = freeUsageCount;
   if (remainingCountEl) remainingCountEl.textContent = subscribed ? '∞' : Math.max(0, 3 - freeUsageCount);
+  if (userEmailEl && currentUser) userEmailEl.textContent = currentUser.email;
   
   // Show upgrade notice if free limit reached
   const upgradeNotice = document.getElementById('upgrade-notice');
@@ -224,32 +222,49 @@ function showMainSection() {
   updateUsageDisplay();
 }
 
+function toggleAuthMode() {
+  isSignInMode = !isSignInMode;
+  const titleEl = document.getElementById('auth-title');
+  const submitBtn = document.getElementById('auth-submit');
+  const toggleBtn = document.getElementById('auth-toggle-btn');
+  const errorEl = document.getElementById('error-message');
+  
+  // Clear any errors
+  errorEl.classList.add('hidden');
+  
+  if (isSignInMode) {
+    titleEl.textContent = 'Sign In to DM Decoder';
+    submitBtn.textContent = 'Sign In';
+    toggleBtn.textContent = "Don't have an account? Sign up";
+  } else {
+    titleEl.textContent = 'Create DM Decoder Account';
+    submitBtn.textContent = 'Create Account';
+    toggleBtn.textContent = 'Already have an account? Sign in';
+  }
+}
+
 function setupEventListeners() {
-  // Authentication
-  const loginBtn = document.getElementById('login-btn');
-  if (loginBtn) {
-    loginBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: 'https://reply-mind.lovable.app' });
-      // Check auth status after a delay to allow for login
-      setTimeout(() => {
-        checkAuthStatus();
-      }, 3000);
+  // Authentication form
+  const authForm = document.getElementById('auth-form');
+  if (authForm) {
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      await handleAuth(email, password, !isSignInMode);
     });
   }
   
+  // Auth mode toggle
+  const authToggleBtn = document.getElementById('auth-toggle-btn');
+  if (authToggleBtn) {
+    authToggleBtn.addEventListener('click', toggleAuthMode);
+  }
+  
+  // Sign out
   const signOutBtn = document.getElementById('sign-out-btn');
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
-      try {
-        // Call web app logout endpoint
-        await fetch('https://reply-mind.lovable.app/api/auth/logout', {
-          method: 'POST',
-          credentials: 'include'
-        });
-      } catch (error) {
-        console.log('Logout error:', error);
-      }
-      
       // Clear local data
       currentUser = null;
       subscribed = false;
@@ -328,72 +343,30 @@ async function analyzeMessage() {
   }
   
   try {
-    let intent, reply;
-    
-    if (subscribed) {
-      // Use full AI analysis for subscribed users
-      const response = await fetch('https://reply-mind.lovable.app/api/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          message: message,
-          tone: selectedTone
-        })
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        intent = result.intent;
-        reply = result.suggestedReply;
-      } else {
-        throw new Error('Analysis failed');
-      }
-    } else {
-      // Use demo analysis for free users
-      const response = await fetch('https://reply-mind.lovable.app/api/demo-analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: message,
-          tone: selectedTone
-        })
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        intent = result.intent;
-        reply = result.suggestedReply;
-        
-        // Increment free usage count
-        freeUsageCount++;
-        updateUsageData();
-      } else {
-        throw new Error('Demo analysis failed');
-      }
-    }
-    
-    showResults(intent, reply);
-    
-  } catch (error) {
-    console.error('Analysis error:', error);
-    // Fallback demo response
+    // Use demo analysis for now (can be upgraded to full API later)
     const demoResponses = {
       friendly: "Thanks for reaching out! I'd be happy to help with this. When would be a good time to discuss further?",
       formal: "Thank you for your inquiry. I would be pleased to assist you with this matter. Please let me know when we can schedule a discussion.",
       witty: "Well hello there! Looks like you've got something interesting brewing. I'm all ears! 👂"
     };
     
-    showResults('Business Inquiry', demoResponses[selectedTone] || demoResponses.friendly);
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
+    const intent = 'Business Inquiry';
+    const reply = demoResponses[selectedTone] || demoResponses.friendly;
+    
+    showResults(intent, reply);
+    
+    // Increment usage count
     if (!subscribed) {
       freeUsageCount++;
       updateUsageData();
     }
+    
+  } catch (error) {
+    console.error('Analysis error:', error);
+    alert('Analysis failed. Please try again.');
   } finally {
     if (analyzeBtn) {
       analyzeBtn.textContent = 'Analyze Message';
@@ -451,26 +424,3 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     updateUsageDisplay();
   }
 });
-
-// Check auth status when window becomes visible
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    setTimeout(() => {
-      checkAuthStatus();
-    }, 1000);
-  }
-});
-
-// Also check auth status when the popup window gets focus
-window.addEventListener('focus', () => {
-  setTimeout(() => {
-    checkAuthStatus();
-  }, 1000);
-});
-
-// Check auth status periodically when popup is open
-setInterval(() => {
-  if (!document.hidden) {
-    checkAuthStatus();
-  }
-}, 5000);
