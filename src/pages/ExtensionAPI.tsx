@@ -8,6 +8,8 @@ const ExtensionAPI = () => {
   const { user, subscribed } = useAuth();
 
   useEffect(() => {
+    console.log('ExtensionAPI mounted, user:', user, 'subscribed:', subscribed);
+    
     // Create API endpoints for the extension
     const handleApiRequest = async (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
@@ -15,6 +17,8 @@ const ExtensionAPI = () => {
       const { type, path, method, body } = event.data;
       
       if (type !== 'EXTENSION_API_REQUEST') return;
+      
+      console.log('Handling extension API request:', { type, path, method });
       
       let response;
       
@@ -26,6 +30,7 @@ const ExtensionAPI = () => {
               user: user ? { id: user.id, email: user.email } : null,
               subscribed
             };
+            console.log('Auth check response:', response);
             break;
             
           case '/api/auth/logout':
@@ -69,6 +74,7 @@ const ExtensionAPI = () => {
         }
         
         // Send response back
+        console.log('Sending response:', response);
         event.source?.postMessage({
           type: 'EXTENSION_API_RESPONSE',
           success: true,
@@ -76,6 +82,7 @@ const ExtensionAPI = () => {
         }, { targetOrigin: event.origin });
         
       } catch (error) {
+        console.error('Extension API error:', error);
         event.source?.postMessage({
           type: 'EXTENSION_API_RESPONSE',
           success: false,
@@ -86,11 +93,15 @@ const ExtensionAPI = () => {
 
     // Also handle direct extension API calls via window.extensionAPI
     window.extensionAPI = {
-      checkAuth: () => ({
-        authenticated: !!user,
-        user: user ? { id: user.id, email: user.email } : null,
-        subscribed
-      }),
+      checkAuth: () => {
+        const result = {
+          authenticated: !!user,
+          user: user ? { id: user.id, email: user.email } : null,
+          subscribed
+        };
+        console.log('Direct API auth check:', result);
+        return result;
+      },
       
       logout: async () => {
         await supabase.auth.signOut();
@@ -124,6 +135,18 @@ const ExtensionAPI = () => {
     };
 
     window.addEventListener('message', handleApiRequest);
+    
+    // Also broadcast auth status change when user state changes
+    const broadcastAuthChange = () => {
+      window.postMessage({
+        type: 'AUTH_STATE_CHANGED',
+        authenticated: !!user,
+        user: user ? { id: user.id, email: user.email } : null,
+        subscribed
+      }, window.location.origin);
+    };
+    
+    broadcastAuthChange();
     
     return () => {
       window.removeEventListener('message', handleApiRequest);

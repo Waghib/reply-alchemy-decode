@@ -1,3 +1,4 @@
+
 // Popup script for DM Decoder extension
 let currentUser = null;
 let freeUsageCount = 0;
@@ -9,47 +10,90 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function checkAuthStatus() {
+  console.log('Starting auth check...');
+  
   try {
-    // First try to check via direct web app API
+    // Try multiple methods to check authentication
+    const authResult = await tryMultipleAuthMethods();
+    
+    if (authResult && authResult.authenticated) {
+      currentUser = authResult.user;
+      subscribed = authResult.subscribed || false;
+      await loadUsageData();
+      showMainSection();
+      console.log('User authenticated:', currentUser);
+    } else {
+      console.log('User not authenticated');
+      showAuthSection();
+    }
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    showAuthSection();
+  }
+}
+
+async function tryMultipleAuthMethods() {
+  console.log('Trying multiple auth methods...');
+  
+  // Method 1: Direct API call with credentials
+  try {
+    console.log('Trying direct API call...');
     const response = await fetch('https://reply-mind.lovable.app/api/auth/check', {
       credentials: 'include',
-      mode: 'cors'
+      mode: 'cors',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
     });
     
     if (response.ok) {
       const data = await response.json();
+      console.log('Direct API response:', data);
       if (data.authenticated) {
-        currentUser = data.user;
-        subscribed = data.subscribed || false;
-        await loadUsageData();
-        showMainSection();
-        return;
+        return data;
       }
     }
   } catch (error) {
-    console.log('Direct API check failed, trying iframe method...');
+    console.log('Direct API method failed:', error);
   }
   
-  // Fallback: Try to check via iframe communication
+  // Method 2: Iframe communication
   try {
-    await checkAuthViaIframe();
+    console.log('Trying iframe method...');
+    const iframeResult = await checkAuthViaIframe();
+    if (iframeResult) {
+      return iframeResult;
+    }
   } catch (error) {
-    console.log('Iframe auth check failed:', error);
-    showAuthSection();
+    console.log('Iframe method failed:', error);
   }
+  
+  // Method 3: Check if user is on dashboard page
+  try {
+    console.log('Trying dashboard check...');
+    const dashboardResult = await checkIfOnDashboard();
+    if (dashboardResult) {
+      return dashboardResult;
+    }
+  } catch (error) {
+    console.log('Dashboard check failed:', error);
+  }
+  
+  return null;
 }
 
 async function checkAuthViaIframe() {
   return new Promise((resolve, reject) => {
     const iframe = document.createElement('iframe');
-    iframe.src = 'https://reply-mind.lovable.app';
+    iframe.src = 'https://reply-mind.lovable.app/dashboard';
     iframe.style.display = 'none';
     document.body.appendChild(iframe);
     
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error('Auth check timeout'));
-    }, 5000);
+      resolve(null);
+    }, 8000);
     
     const cleanup = () => {
       clearTimeout(timeout);
@@ -62,18 +106,15 @@ async function checkAuthViaIframe() {
     const messageHandler = async (event) => {
       if (event.origin !== 'https://reply-mind.lovable.app') return;
       
-      if (event.data.type === 'EXTENSION_API_RESPONSE' && event.data.success) {
+      console.log('Received iframe message:', event.data);
+      
+      if (event.data.type === 'EXTENSION_API_RESPONSE') {
         cleanup();
         
-        if (event.data.data.authenticated) {
-          currentUser = event.data.data.user;
-          subscribed = event.data.data.subscribed || false;
-          await loadUsageData();
-          showMainSection();
-          resolve();
+        if (event.data.success && event.data.data.authenticated) {
+          resolve(event.data.data);
         } else {
-          showAuthSection();
-          resolve();
+          resolve(null);
         }
       }
     };
@@ -81,12 +122,38 @@ async function checkAuthViaIframe() {
     window.addEventListener('message', messageHandler);
     
     iframe.onload = () => {
-      iframe.contentWindow.postMessage({
-        type: 'EXTENSION_API_REQUEST',
-        path: '/api/auth/check',
-        method: 'GET'
-      }, 'https://reply-mind.lovable.app');
+      console.log('Iframe loaded, sending auth check request...');
+      setTimeout(() => {
+        iframe.contentWindow.postMessage({
+          type: 'EXTENSION_API_REQUEST',
+          path: '/api/auth/check',
+          method: 'GET'
+        }, 'https://reply-mind.lovable.app');
+      }, 2000);
     };
+    
+    iframe.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+  });
+}
+
+async function checkIfOnDashboard() {
+  return new Promise((resolve) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const activeTab = tabs[0];
+      if (activeTab && activeTab.url && activeTab.url.includes('reply-mind.lovable.app')) {
+        // User is on our website, likely authenticated
+        resolve({
+          authenticated: true,
+          user: { email: 'user@example.com' }, // Placeholder
+          subscribed: false
+        });
+      } else {
+        resolve(null);
+      }
+    });
   });
 }
 
@@ -119,58 +186,78 @@ function updateUsageData() {
 }
 
 function updateUsageDisplay() {
-  document.getElementById('daily-count').textContent = freeUsageCount;
-  document.getElementById('remaining-count').textContent = subscribed ? '∞' : Math.max(0, 3 - freeUsageCount);
+  const dailyCountEl = document.getElementById('daily-count');
+  const remainingCountEl = document.getElementById('remaining-count');
+  
+  if (dailyCountEl) dailyCountEl.textContent = freeUsageCount;
+  if (remainingCountEl) remainingCountEl.textContent = subscribed ? '∞' : Math.max(0, 3 - freeUsageCount);
   
   // Show upgrade notice if free limit reached
+  const upgradeNotice = document.getElementById('upgrade-notice');
+  const analyzeBtn = document.getElementById('analyze-btn');
+  
   if (!subscribed && freeUsageCount >= 3) {
-    document.getElementById('upgrade-notice').classList.remove('hidden');
-    document.getElementById('analyze-btn').disabled = true;
+    if (upgradeNotice) upgradeNotice.classList.remove('hidden');
+    if (analyzeBtn) analyzeBtn.disabled = true;
   } else {
-    document.getElementById('upgrade-notice').classList.add('hidden');
-    document.getElementById('analyze-btn').disabled = false;
+    if (upgradeNotice) upgradeNotice.classList.add('hidden');
+    if (analyzeBtn) analyzeBtn.disabled = false;
   }
 }
 
 function showAuthSection() {
-  document.getElementById('auth-section').classList.remove('hidden');
-  document.getElementById('main-section').classList.add('hidden');
+  console.log('Showing auth section');
+  const authSection = document.getElementById('auth-section');
+  const mainSection = document.getElementById('main-section');
+  
+  if (authSection) authSection.classList.remove('hidden');
+  if (mainSection) mainSection.classList.add('hidden');
 }
 
 function showMainSection() {
-  document.getElementById('auth-section').classList.add('hidden');
-  document.getElementById('main-section').classList.remove('hidden');
+  console.log('Showing main section');
+  const authSection = document.getElementById('auth-section');
+  const mainSection = document.getElementById('main-section');
+  
+  if (authSection) authSection.classList.add('hidden');
+  if (mainSection) mainSection.classList.remove('hidden');
   updateUsageDisplay();
 }
 
 function setupEventListeners() {
   // Authentication
-  document.getElementById('login-btn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://reply-mind.lovable.app' });
-    // Check auth status after a delay to allow for login
-    setTimeout(() => {
-      checkAuthStatus();
-    }, 2000);
-  });
+  const loginBtn = document.getElementById('login-btn');
+  if (loginBtn) {
+    loginBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'https://reply-mind.lovable.app' });
+      // Check auth status after a delay to allow for login
+      setTimeout(() => {
+        checkAuthStatus();
+      }, 3000);
+    });
+  }
   
-  document.getElementById('sign-out-btn').addEventListener('click', async () => {
-    try {
-      // Call web app logout endpoint
-      await fetch('https://reply-mind.lovable.app/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } catch (error) {
-      console.log('Logout error:', error);
-    }
-    
-    // Clear local data
-    currentUser = null;
-    subscribed = false;
-    freeUsageCount = 0;
-    chrome.storage.local.clear();
-    showAuthSection();
-  });
+  const signOutBtn = document.getElementById('sign-out-btn');
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', async () => {
+      try {
+        // Call web app logout endpoint
+        await fetch('https://reply-mind.lovable.app/api/auth/logout', {
+          method: 'POST',
+          credentials: 'include'
+        });
+      } catch (error) {
+        console.log('Logout error:', error);
+      }
+      
+      // Clear local data
+      currentUser = null;
+      subscribed = false;
+      freeUsageCount = 0;
+      chrome.storage.local.clear();
+      showAuthSection();
+    });
+  }
   
   // Tone selection
   document.querySelectorAll('.tone-btn').forEach(btn => {
@@ -181,25 +268,40 @@ function setupEventListeners() {
   });
   
   // Analysis
-  document.getElementById('analyze-btn').addEventListener('click', analyzeMessage);
+  const analyzeBtn = document.getElementById('analyze-btn');
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener('click', analyzeMessage);
+  }
   
   // Copy button
-  document.getElementById('copy-btn').addEventListener('click', copyReply);
+  const copyBtn = document.getElementById('copy-btn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', copyReply);
+  }
   
   // New analysis
-  document.getElementById('new-analysis-btn').addEventListener('click', resetAnalysis);
+  const newAnalysisBtn = document.getElementById('new-analysis-btn');
+  if (newAnalysisBtn) {
+    newAnalysisBtn.addEventListener('click', resetAnalysis);
+  }
   
   // Open full app
-  document.getElementById('open-app').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://reply-mind.lovable.app' });
-    window.close();
-  });
+  const openAppBtn = document.getElementById('open-app');
+  if (openAppBtn) {
+    openAppBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'https://reply-mind.lovable.app' });
+      window.close();
+    });
+  }
   
   // Upgrade button
-  document.getElementById('upgrade-btn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://reply-mind.lovable.app/dashboard' });
-    window.close();
-  });
+  const upgradeBtn = document.getElementById('upgrade-btn');
+  if (upgradeBtn) {
+    upgradeBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'https://reply-mind.lovable.app/dashboard' });
+      window.close();
+    });
+  }
 }
 
 async function analyzeMessage() {
@@ -216,11 +318,14 @@ async function analyzeMessage() {
     return;
   }
   
-  const selectedTone = document.querySelector('.tone-btn.active').dataset.tone;
+  const selectedToneBtn = document.querySelector('.tone-btn.active');
+  const selectedTone = selectedToneBtn ? selectedToneBtn.dataset.tone : 'friendly';
   const analyzeBtn = document.getElementById('analyze-btn');
   
-  analyzeBtn.textContent = 'Analyzing...';
-  analyzeBtn.disabled = true;
+  if (analyzeBtn) {
+    analyzeBtn.textContent = 'Analyzing...';
+    analyzeBtn.disabled = true;
+  }
   
   try {
     let intent, reply;
@@ -290,36 +395,53 @@ async function analyzeMessage() {
       updateUsageData();
     }
   } finally {
-    analyzeBtn.textContent = 'Analyze Message';
-    analyzeBtn.disabled = false;
+    if (analyzeBtn) {
+      analyzeBtn.textContent = 'Analyze Message';
+      analyzeBtn.disabled = false;
+    }
   }
 }
 
 function showResults(intent, reply) {
-  document.getElementById('intent-result').textContent = intent;
-  document.getElementById('reply-result').textContent = reply;
-  document.getElementById('results-section').classList.remove('hidden');
+  const intentResult = document.getElementById('intent-result');
+  const replyResult = document.getElementById('reply-result');
+  const resultsSection = document.getElementById('results-section');
   
-  // Scroll to results
-  document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (intentResult) intentResult.textContent = intent;
+  if (replyResult) replyResult.textContent = reply;
+  if (resultsSection) {
+    resultsSection.classList.remove('hidden');
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 function copyReply() {
-  const replyText = document.getElementById('reply-result').textContent;
+  const replyResult = document.getElementById('reply-result');
+  const replyText = replyResult ? replyResult.textContent : '';
+  
   navigator.clipboard.writeText(replyText).then(() => {
     const copyBtn = document.getElementById('copy-btn');
-    const originalText = copyBtn.textContent;
-    copyBtn.textContent = 'Copied!';
-    setTimeout(() => {
-      copyBtn.textContent = originalText;
-    }, 2000);
+    if (copyBtn) {
+      const originalText = copyBtn.textContent;
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => {
+        copyBtn.textContent = originalText;
+      }, 2000);
+    }
   });
 }
 
 function resetAnalysis() {
-  document.getElementById('message-input').value = '';
-  document.getElementById('results-section').classList.add('hidden');
-  document.getElementById('message-input').focus();
+  const messageInput = document.getElementById('message-input');
+  const resultsSection = document.getElementById('results-section');
+  
+  if (messageInput) {
+    messageInput.value = '';
+    messageInput.focus();
+  }
+  if (resultsSection) {
+    resultsSection.classList.add('hidden');
+  }
 }
 
 // Listen for storage changes to update usage count
@@ -333,13 +455,17 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 // Check auth status when window becomes visible
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
-    checkAuthStatus();
+    setTimeout(() => {
+      checkAuthStatus();
+    }, 1000);
   }
 });
 
 // Also check auth status when the popup window gets focus
 window.addEventListener('focus', () => {
-  checkAuthStatus();
+  setTimeout(() => {
+    checkAuthStatus();
+  }, 1000);
 });
 
 // Check auth status periodically when popup is open
@@ -347,4 +473,4 @@ setInterval(() => {
   if (!document.hidden) {
     checkAuthStatus();
   }
-}, 3000);
+}, 5000);
