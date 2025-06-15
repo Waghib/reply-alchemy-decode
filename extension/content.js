@@ -1,6 +1,6 @@
 
 // Content script for DM Decoder extension
-let isActive = false;
+let isActive = true;
 let floatingWidget = null;
 let selectedText = '';
 
@@ -53,6 +53,7 @@ function createFloatingWidget() {
           <button id="dm-copy-btn">Copy Reply</button>
         </div>
         <button id="dm-new-analysis">New Analysis</button>
+        <button id="dm-open-popup">Open Extension</button>
       </div>
     </div>
   `;
@@ -85,6 +86,12 @@ function setupWidgetEvents() {
   
   // New analysis button
   document.getElementById('dm-new-analysis').addEventListener('click', resetWidget);
+  
+  // Open popup button
+  document.getElementById('dm-open-popup').addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'openPopup' });
+    hideWidget();
+  });
 }
 
 function setupTextSelection() {
@@ -168,30 +175,74 @@ async function analyzeMessage() {
   analyzeBtn.disabled = true;
   
   try {
-    // Call your existing API
-    const response = await fetch('https://reply-mind.lovable.app/api/analyze', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: message,
-        tone: selectedTone
-      })
-    });
+    // Try to use the web app's API through iframe communication
+    const webAppFrame = document.createElement('iframe');
+    webAppFrame.src = 'https://reply-mind.lovable.app';
+    webAppFrame.style.display = 'none';
+    document.body.appendChild(webAppFrame);
     
-    if (!response.ok) {
-      throw new Error('Analysis failed');
-    }
+    // Wait for iframe to load and then send API request
+    webAppFrame.onload = () => {
+      webAppFrame.contentWindow.postMessage({
+        type: 'EXTENSION_API_REQUEST',
+        path: '/api/demo-analyze',
+        method: 'POST',
+        body: { message, tone: selectedTone }
+      }, 'https://reply-mind.lovable.app');
+    };
     
-    const result = await response.json();
-    showResults(result.intent, result.suggestedReply);
+    // Listen for response
+    const responseHandler = (event) => {
+      if (event.origin !== 'https://reply-mind.lovable.app') return;
+      
+      if (event.data.type === 'EXTENSION_API_RESPONSE') {
+        window.removeEventListener('message', responseHandler);
+        document.body.removeChild(webAppFrame);
+        
+        if (event.data.success) {
+          showResults(event.data.data.intent, event.data.data.suggestedReply);
+        } else {
+          throw new Error(event.data.error);
+        }
+        
+        analyzeBtn.textContent = 'Analyze Message';
+        analyzeBtn.disabled = false;
+      }
+    };
+    
+    window.addEventListener('message', responseHandler);
+    
+    // Fallback timeout
+    setTimeout(() => {
+      window.removeEventListener('message', responseHandler);
+      if (webAppFrame.parentNode) {
+        document.body.removeChild(webAppFrame);
+      }
+      
+      // Use fallback demo response
+      const demoResponses = {
+        friendly: "Thanks for reaching out! I'd be happy to help with this. When would be a good time to discuss further?",
+        formal: "Thank you for your inquiry. I would be pleased to assist you with this matter. Please let me know when we can schedule a discussion.",
+        witty: "Well hello there! Looks like you've got something interesting brewing. I'm all ears! 👂"
+      };
+      
+      showResults('Business Inquiry', demoResponses[selectedTone] || demoResponses.friendly);
+      
+      analyzeBtn.textContent = 'Analyze Message';
+      analyzeBtn.disabled = false;
+    }, 5000);
     
   } catch (error) {
     console.error('Analysis error:', error);
-    // Fallback to demo analysis for now
-    showResults('Business Inquiry', `Thanks for reaching out! I'd be happy to discuss this further. When would be a good time to chat?`);
-  } finally {
+    // Fallback demo response
+    const demoResponses = {
+      friendly: "Thanks for reaching out! I'd be happy to help with this. When would be a good time to discuss further?",
+      formal: "Thank you for your inquiry. I would be pleased to assist you with this matter. Please let me know when we can schedule a discussion.",
+      witty: "Well hello there! Looks like you've got something interesting brewing. I'm all ears! 👂"
+    };
+    
+    showResults('Business Inquiry', demoResponses[selectedTone] || demoResponses.friendly);
+    
     analyzeBtn.textContent = 'Analyze Message';
     analyzeBtn.disabled = false;
   }
