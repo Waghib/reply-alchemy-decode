@@ -1,74 +1,49 @@
 
-// API communication with the web app
+// API communication with Supabase backend
+import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2.45.0';
+
+const SUPABASE_URL = "https://aodowsouzxzjuvroqule.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZG93c291enh6anV2cm9xdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk5MDA1MjQsImV4cCI6MjA2NTQ3NjUyNH0.Ez5lIB3pF2Hguyn5BgPKhUUbSwL977-edi-wgrHFca4";
+
 export class APICommunication {
   constructor() {
-    this.webAppUrl = 'https://reply-mind.lovable.app';
+    this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
 
   async analyzeMessage(message, tone) {
-    return new Promise((resolve) => {
-      // Create iframe for API communication
-      const webAppFrame = document.createElement('iframe');
-      webAppFrame.src = this.webAppUrl;
-      webAppFrame.style.display = 'none';
-      document.body.appendChild(webAppFrame);
+    try {
+      // Use the same demo analysis function as the web app
+      const { data, error } = await this.supabase.functions.invoke('generate-demo-reply', {
+        body: { message, tone }
+      });
       
-      // Wait for iframe to load and then send API request
-      webAppFrame.onload = () => {
-        webAppFrame.contentWindow.postMessage({
-          type: 'EXTENSION_API_REQUEST',
-          path: '/api/demo-analyze',
-          method: 'POST',
-          body: { message, tone }
-        }, this.webAppUrl);
-      };
+      if (error) throw error;
       
-      // Listen for response
-      const responseHandler = (event) => {
-        if (event.origin !== this.webAppUrl) return;
-        
-        if (event.data.type === 'EXTENSION_API_RESPONSE') {
-          window.removeEventListener('message', responseHandler);
-          document.body.removeChild(webAppFrame);
-          
-          if (event.data.success) {
-            resolve({
-              success: true,
-              data: event.data.data
-            });
-          } else {
-            resolve({
-              success: false,
-              error: event.data.error
-            });
-          }
+      return {
+        success: true,
+        data: {
+          intent: data.intent,
+          suggestedReply: data.suggestedReply
         }
       };
       
-      window.addEventListener('message', responseHandler);
+    } catch (error) {
+      console.error('Analysis error:', error);
       
-      // Fallback timeout
-      setTimeout(() => {
-        window.removeEventListener('message', responseHandler);
-        if (webAppFrame.parentNode) {
-          document.body.removeChild(webAppFrame);
+      // Fallback demo responses
+      const demoResponses = {
+        friendly: "Thanks for reaching out! I'd be happy to help with this. When would be a good time to discuss further?",
+        formal: "Thank you for your inquiry. I would be pleased to assist you with this matter. Please let me know when we can schedule a discussion.",
+        witty: "Well hello there! Looks like you've got something interesting brewing. I'm all ears! 👂"
+      };
+      
+      return {
+        success: true,
+        data: {
+          intent: 'Business Inquiry',
+          suggestedReply: demoResponses[tone] || demoResponses.friendly
         }
-        
-        // Use fallback demo response
-        const demoResponses = {
-          friendly: "Thanks for reaching out! I'd be happy to help with this. When would be a good time to discuss further?",
-          formal: "Thank you for your inquiry. I would be pleased to assist you with this matter. Please let me know when we can schedule a discussion.",
-          witty: "Well hello there! Looks like you've got something interesting brewing. I'm all ears! 👂"
-        };
-        
-        resolve({
-          success: true,
-          data: {
-            intent: 'Business Inquiry',
-            suggestedReply: demoResponses[tone] || demoResponses.friendly
-          }
-        });
-      }, 5000);
-    });
+      };
+    }
   }
 }

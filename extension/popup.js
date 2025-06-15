@@ -1,5 +1,13 @@
 
-// Popup script for DM Decoder extension with built-in authentication
+// Popup script for DM Decoder extension with Supabase authentication
+import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2.45.0';
+
+// Same Supabase configuration as the web app
+const SUPABASE_URL = "https://aodowsouzxzjuvroqule.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZG93c291enh6anV2cm9xdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk5MDA1MjQsImV4cCI6MjA2NTQ3NjUyNH0.Ez5lIB3pF2Hguyn5BgPKhUUbSwL977-edi-wgrHFca4";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 let currentUser = null;
 let freeUsageCount = 0;
 let subscribed = false;
@@ -14,17 +22,14 @@ async function checkAuthStatus() {
   console.log('Checking auth status...');
   
   try {
-    // Check if user data is stored locally
-    const stored = await new Promise(resolve => {
-      chrome.storage.local.get(['currentUser', 'userToken'], resolve);
-    });
+    // Check current session
+    const { data: { session }, error } = await supabase.auth.getSession();
     
-    if (stored.currentUser && stored.userToken) {
-      currentUser = stored.currentUser;
-      subscribed = stored.currentUser.subscribed || false;
-      await loadUsageData();
+    if (session?.user) {
+      currentUser = session.user;
+      await loadUserData();
       showMainSection();
-      console.log('User authenticated from storage:', currentUser);
+      console.log('User authenticated:', currentUser.email);
     } else {
       console.log('User not authenticated');
       showAuthSection();
@@ -45,105 +50,96 @@ async function handleAuth(email, password, isSignUp = false) {
   submitBtn.textContent = isSignUp ? 'Creating Account...' : 'Signing In...';
   
   try {
-    const response = await fetch('https://aodowsouzxzjuvroqule.supabase.co/auth/v1/token?grant_type=password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZG93c291enh6anV2cm9xdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk5MDA1MjQsImV4cCI6MjA2NTQ3NjUyNH0.Ez5lIB3pF2Hguyn5BgPKhUUbSwL977-edi-wgrHFca4'
-      },
-      body: JSON.stringify({
+    let result;
+    
+    if (isSignUp) {
+      result = await supabase.auth.signUp({
         email: email,
         password: password
-      })
-    });
-    
-    if (response.ok) {
-      const authData = await response.json();
-      
-      // Store user data
-      currentUser = {
-        id: authData.user.id,
-        email: authData.user.email,
-        subscribed: false // Default to false, can be updated later
-      };
-      
-      // Store in chrome storage
-      await new Promise(resolve => {
-        chrome.storage.local.set({
-          currentUser: currentUser,
-          userToken: authData.access_token
-        }, resolve);
       });
-      
-      await loadUsageData();
-      showMainSection();
-      
     } else {
-      // If sign in failed and this was a sign in attempt, try sign up
-      if (!isSignUp) {
-        return await handleSignUp(email, password);
-      } else {
-        throw new Error('Authentication failed');
+      result = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+    }
+    
+    if (result.error) {
+      if (!isSignUp && result.error.message.includes('Invalid login credentials')) {
+        // Try sign up if sign in failed
+        return await handleAuth(email, password, true);
       }
+      throw result.error;
+    }
+    
+    if (result.data.user) {
+      currentUser = result.data.user;
+      await loadUserData();
+      showMainSection();
     }
     
   } catch (error) {
     console.error('Auth error:', error);
-    
-    if (!isSignUp) {
-      // Try sign up if sign in failed
-      return await handleSignUp(email, password);
-    }
-    
-    showError('Authentication failed. Please check your credentials and try again.');
+    showError(error.message || 'Authentication failed. Please try again.');
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = isSignUp ? 'Create Account' : 'Sign In';
   }
 }
 
-async function handleSignUp(email, password) {
+async function loadUserData() {
   try {
-    const response = await fetch('https://aodowsouzxzjuvroqule.supabase.co/auth/v1/signup', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZG93c291enh6anV2cm9xdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk5MDA1MjQsImV4cCI6MjA2NTQ3NjUyNH0.Ez5lIB3pF2Hguyn5BgPKhUUbSwL977-edi-wgrHFca4'
-      },
-      body: JSON.stringify({
-        email: email,
-        password: password
-      })
-    });
+    // Check subscription status
+    const { data: subscription } = await supabase.functions.invoke('check-subscription');
+    subscribed = subscription?.subscribed || false;
     
-    if (response.ok) {
-      const authData = await response.json();
-      
-      // Store user data
-      currentUser = {
-        id: authData.user.id,
-        email: authData.user.email,
-        subscribed: false
-      };
-      
-      // Store in chrome storage
-      await new Promise(resolve => {
-        chrome.storage.local.set({
-          currentUser: currentUser,
-          userToken: authData.access_token
-        }, resolve);
-      });
-      
-      await loadUsageData();
-      showMainSection();
-      
-    } else {
-      throw new Error('Account creation failed');
+    // Load free usage count
+    const { data: usage, error } = await supabase
+      .from('free_usage_tracking')
+      .select('usage_count')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error loading usage:', error);
     }
     
+    freeUsageCount = usage?.usage_count || 0;
+    updateUsageDisplay();
+    
   } catch (error) {
-    console.error('Sign up error:', error);
-    showError('Failed to create account. Please try again.');
+    console.error('Error loading user data:', error);
+  }
+}
+
+async function updateFreeUsageCount() {
+  if (!currentUser || subscribed) return true;
+  
+  try {
+    const newCount = freeUsageCount + 1;
+    
+    const { error } = await supabase
+      .from('free_usage_tracking')
+      .upsert({
+        user_id: currentUser.id,
+        usage_count: newCount,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+    
+    if (error) {
+      console.error('Error updating usage:', error);
+      return false;
+    }
+    
+    freeUsageCount = newCount;
+    updateUsageDisplay();
+    return true;
+    
+  } catch (error) {
+    console.error('Error updating usage:', error);
+    return false;
   }
 }
 
@@ -151,34 +147,6 @@ function showError(message) {
   const errorEl = document.getElementById('error-message');
   errorEl.textContent = message;
   errorEl.classList.remove('hidden');
-}
-
-async function loadUsageData() {
-  try {
-    const today = new Date().toDateString();
-    const stored = await new Promise(resolve => {
-      chrome.storage.local.get(['dailyCount', 'lastUsageDate'], resolve);
-    });
-    
-    if (stored.lastUsageDate === today) {
-      freeUsageCount = stored.dailyCount || 0;
-    } else {
-      freeUsageCount = 0;
-    }
-    
-    updateUsageDisplay();
-  } catch (error) {
-    console.error('Error loading usage data:', error);
-  }
-}
-
-function updateUsageData() {
-  const today = new Date().toDateString();
-  chrome.storage.local.set({
-    dailyCount: freeUsageCount,
-    lastUsageDate: today
-  });
-  updateUsageDisplay();
 }
 
 function updateUsageDisplay() {
@@ -204,7 +172,6 @@ function updateUsageDisplay() {
 }
 
 function showAuthSection() {
-  console.log('Showing auth section');
   const authSection = document.getElementById('auth-section');
   const mainSection = document.getElementById('main-section');
   
@@ -213,7 +180,6 @@ function showAuthSection() {
 }
 
 function showMainSection() {
-  console.log('Showing main section');
   const authSection = document.getElementById('auth-section');
   const mainSection = document.getElementById('main-section');
   
@@ -265,11 +231,10 @@ function setupEventListeners() {
   const signOutBtn = document.getElementById('sign-out-btn');
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
-      // Clear local data
+      await supabase.auth.signOut();
       currentUser = null;
       subscribed = false;
       freeUsageCount = 0;
-      chrome.storage.local.clear();
       showAuthSection();
     });
   }
@@ -343,30 +308,36 @@ async function analyzeMessage() {
   }
   
   try {
-    // Use demo analysis for now (can be upgraded to full API later)
+    // Use the same demo analysis function as the web app
+    const { data, error } = await supabase.functions.invoke('generate-demo-reply', {
+      body: { message, tone: selectedTone }
+    });
+    
+    if (error) throw error;
+    
+    showResults(data.intent, data.suggestedReply);
+    
+    // Update usage count if not subscribed
+    if (!subscribed) {
+      await updateFreeUsageCount();
+    }
+    
+  } catch (error) {
+    console.error('Analysis error:', error);
+    
+    // Fallback demo responses
     const demoResponses = {
       friendly: "Thanks for reaching out! I'd be happy to help with this. When would be a good time to discuss further?",
       formal: "Thank you for your inquiry. I would be pleased to assist you with this matter. Please let me know when we can schedule a discussion.",
       witty: "Well hello there! Looks like you've got something interesting brewing. I'm all ears! 👂"
     };
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    showResults('Business Inquiry', demoResponses[selectedTone] || demoResponses.friendly);
     
-    const intent = 'Business Inquiry';
-    const reply = demoResponses[selectedTone] || demoResponses.friendly;
-    
-    showResults(intent, reply);
-    
-    // Increment usage count
     if (!subscribed) {
-      freeUsageCount++;
-      updateUsageData();
+      await updateFreeUsageCount();
     }
     
-  } catch (error) {
-    console.error('Analysis error:', error);
-    alert('Analysis failed. Please try again.');
   } finally {
     if (analyzeBtn) {
       analyzeBtn.textContent = 'Analyze Message';
@@ -417,10 +388,18 @@ function resetAnalysis() {
   }
 }
 
-// Listen for storage changes to update usage count
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.dailyCount) {
-    freeUsageCount = changes.dailyCount.newValue || 0;
-    updateUsageDisplay();
+// Listen for auth state changes
+supabase.auth.onAuthStateChange(async (event, session) => {
+  console.log('Auth state changed:', event, session?.user?.email);
+  
+  if (event === 'SIGNED_IN' && session?.user) {
+    currentUser = session.user;
+    await loadUserData();
+    showMainSection();
+  } else if (event === 'SIGNED_OUT') {
+    currentUser = null;
+    subscribed = false;
+    freeUsageCount = 0;
+    showAuthSection();
   }
 });
