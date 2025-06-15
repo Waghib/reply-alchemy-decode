@@ -18,6 +18,11 @@ export class AuthManager {
     try {
       const { data: { session }, error } = await this.supabase.auth.getSession();
       
+      if (error) {
+        console.error('Auth check error:', error);
+        return { authenticated: false, user: null, error: error.message };
+      }
+      
       if (session?.user) {
         this.currentUser = session.user;
         console.log('User authenticated:', this.currentUser.email);
@@ -28,43 +33,103 @@ export class AuthManager {
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      return { authenticated: false, user: null };
+      return { authenticated: false, user: null, error: error.message };
     }
   }
 
-  async handleAuth(email, password, isSignUp = false) {
+  async signIn(email, password) {
+    console.log('Attempting sign in for:', email);
+    
     try {
-      let result;
+      const { data, error } = await this.supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password
+      });
       
-      if (isSignUp) {
-        result = await this.supabase.auth.signUp({
-          email: email,
-          password: password
-        });
-      } else {
-        result = await this.supabase.auth.signInWithPassword({
-          email: email,
-          password: password
-        });
+      if (error) {
+        console.error('Sign in error:', error);
+        throw new Error(this.getReadableError(error));
       }
       
-      if (result.error) {
-        if (!isSignUp && result.error.message.includes('Invalid login credentials')) {
-          // Try sign up if sign in failed
-          return await this.handleAuth(email, password, true);
-        }
-        throw result.error;
+      if (data.user) {
+        this.currentUser = data.user;
+        console.log('Sign in successful:', this.currentUser.email);
+        return { success: true, user: data.user };
       }
       
-      if (result.data.user) {
-        this.currentUser = result.data.user;
-        return { success: true, user: result.data.user };
-      }
+      throw new Error('Sign in failed - no user returned');
       
     } catch (error) {
-      console.error('Auth error:', error);
+      console.error('Sign in error:', error);
       throw error;
     }
+  }
+
+  async signUp(email, password) {
+    console.log('Attempting sign up for:', email);
+    
+    try {
+      const { data, error } = await this.supabase.auth.signUp({
+        email: email.trim(),
+        password: password
+      });
+      
+      if (error) {
+        console.error('Sign up error:', error);
+        throw new Error(this.getReadableError(error));
+      }
+      
+      if (data.user) {
+        this.currentUser = data.user;
+        console.log('Sign up successful:', this.currentUser.email);
+        
+        // Check if email confirmation is required
+        if (!data.session) {
+          return { 
+            success: true, 
+            user: data.user, 
+            needsConfirmation: true,
+            message: 'Please check your email to confirm your account.' 
+          };
+        }
+        
+        return { success: true, user: data.user };
+      }
+      
+      throw new Error('Sign up failed - no user returned');
+      
+    } catch (error) {
+      console.error('Sign up error:', error);
+      throw error;
+    }
+  }
+
+  getReadableError(error) {
+    if (!error) return 'An unknown error occurred';
+    
+    const message = error.message || error.error_description || error.toString();
+    
+    // Map common Supabase errors to user-friendly messages
+    if (message.includes('Invalid login credentials')) {
+      return 'Invalid email or password. Please check your credentials and try again.';
+    }
+    if (message.includes('Email not confirmed')) {
+      return 'Please check your email and click the confirmation link before signing in.';
+    }
+    if (message.includes('User already registered')) {
+      return 'An account with this email already exists. Please sign in instead.';
+    }
+    if (message.includes('Password should be at least')) {
+      return 'Password must be at least 6 characters long.';
+    }
+    if (message.includes('Invalid email')) {
+      return 'Please enter a valid email address.';
+    }
+    if (message.includes('Too many requests')) {
+      return 'Too many attempts. Please wait a moment before trying again.';
+    }
+    
+    return message;
   }
 
   async checkSubscription() {
@@ -79,17 +144,33 @@ export class AuthManager {
   }
 
   async signOut() {
-    await this.supabase.auth.signOut();
-    this.currentUser = null;
-    this.subscribed = false;
+    try {
+      const { error } = await this.supabase.auth.signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+        throw error;
+      }
+      
+      this.currentUser = null;
+      this.subscribed = false;
+      console.log('Sign out successful');
+      
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      throw error;
+    }
   }
 
   toggleAuthMode() {
     this.isSignInMode = !this.isSignInMode;
+    console.log('Auth mode toggled to:', this.isSignInMode ? 'Sign In' : 'Sign Up');
     return this.isSignInMode;
   }
 
   onAuthStateChange(callback) {
-    return this.supabase.auth.onAuthStateChange(callback);
+    return this.supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', event, session?.user?.email);
+      callback(event, session);
+    });
   }
 }

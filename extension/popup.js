@@ -1,4 +1,3 @@
-
 import { AuthManager } from './modules/auth.js';
 import { UIManager } from './modules/ui.js';
 import { UsageManager } from './modules/usage.js';
@@ -11,6 +10,7 @@ let usageManager;
 let analysisManager;
 
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('Popup loaded, initializing...');
   initializeManagers();
   await checkAuthStatus();
   setupEventListeners();
@@ -21,42 +21,82 @@ function initializeManagers() {
   uiManager = new UIManager();
   usageManager = new UsageManager(authManager.supabase);
   analysisManager = new AnalysisManager(authManager.supabase);
+  console.log('Managers initialized');
 }
 
 async function checkAuthStatus() {
+  console.log('Checking initial auth status...');
   const authResult = await authManager.checkAuthStatus();
   
   if (authResult.authenticated) {
+    console.log('User is authenticated, loading user data...');
     await loadUserData();
     uiManager.showMainSection();
   } else {
+    console.log('User not authenticated, showing auth section');
     uiManager.showAuthSection();
+    if (authResult.error) {
+      uiManager.showError(authResult.error);
+    }
   }
 }
 
 async function loadUserData() {
   try {
+    console.log('Loading user data...');
     await authManager.checkSubscription();
     await usageManager.loadUserUsage(authManager.currentUser.id);
     usageManager.updateUsageDisplay(authManager.currentUser.email, authManager.subscribed);
+    console.log('User data loaded successfully');
   } catch (error) {
     console.error('Error loading user data:', error);
+    uiManager.showError('Failed to load user data. Please try refreshing.');
   }
 }
 
 async function handleAuth(email, password, isSignUp = false) {
+  console.log(`Handling ${isSignUp ? 'sign up' : 'sign in'} for:`, email);
+  
+  // Validate inputs
+  if (!email || !password) {
+    uiManager.showError('Please enter both email and password.');
+    return;
+  }
+  
+  if (password.length < 6) {
+    uiManager.showError('Password must be at least 6 characters long.');
+    return;
+  }
+  
   uiManager.clearError();
   uiManager.setAuthSubmitState(true, isSignUp);
   
   try {
-    const result = await authManager.handleAuth(email, password, isSignUp);
+    let result;
+    
+    if (isSignUp) {
+      result = await authManager.signUp(email, password);
+    } else {
+      result = await authManager.signIn(email, password);
+    }
     
     if (result.success) {
+      console.log('Authentication successful');
+      
+      if (result.needsConfirmation) {
+        uiManager.showSuccess(result.message);
+        return;
+      }
+      
+      // Clear form and load user data
+      uiManager.clearAuthForm();
       await loadUserData();
       uiManager.showMainSection();
+      uiManager.showSuccess(`${isSignUp ? 'Account created' : 'Signed in'} successfully!`);
     }
     
   } catch (error) {
+    console.error('Authentication failed:', error);
     uiManager.showError(error.message || 'Authentication failed. Please try again.');
   } finally {
     uiManager.setAuthSubmitState(false, isSignUp);
@@ -73,12 +113,12 @@ async function analyzeMessage() {
   const message = messageInput.value.trim();
   
   if (!message) {
-    alert('Please enter a message to analyze');
+    uiManager.showError('Please enter a message to analyze');
     return;
   }
   
   if (!usageManager.canAnalyze(authManager.subscribed)) {
-    alert('You have reached your free analysis limit. Please upgrade to continue.');
+    uiManager.showError('You have reached your free analysis limit. Please upgrade to continue.');
     return;
   }
   
@@ -97,6 +137,7 @@ async function analyzeMessage() {
     
   } catch (error) {
     console.error('Analysis failed:', error);
+    uiManager.showError('Analysis failed. Please try again.');
   } finally {
     uiManager.setAnalyzeButtonState(false);
   }
@@ -113,13 +154,20 @@ async function copyReply() {
 }
 
 function setupEventListeners() {
+  console.log('Setting up event listeners...');
+  
   // Authentication form
   const authForm = document.getElementById('auth-form');
   if (authForm) {
     authForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = document.getElementById('email').value;
+      console.log('Auth form submitted');
+      
+      const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
+      
+      console.log('Form data:', { email, passwordLength: password.length });
+      
       await handleAuth(email, password, !authManager.isSignInMode);
     });
   }
@@ -127,16 +175,26 @@ function setupEventListeners() {
   // Auth mode toggle
   const authToggleBtn = document.getElementById('auth-toggle-btn');
   if (authToggleBtn) {
-    authToggleBtn.addEventListener('click', toggleAuthMode);
+    authToggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('Auth toggle clicked');
+      toggleAuthMode();
+    });
   }
   
   // Sign out
   const signOutBtn = document.getElementById('sign-out-btn');
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
-      await authManager.signOut();
-      usageManager.freeUsageCount = 0;
-      uiManager.showAuthSection();
+      try {
+        await authManager.signOut();
+        usageManager.freeUsageCount = 0;
+        uiManager.showAuthSection();
+        uiManager.showSuccess('Signed out successfully');
+      } catch (error) {
+        console.error('Sign out failed:', error);
+        uiManager.showError('Failed to sign out. Please try again.');
+      }
     });
   }
   
@@ -186,17 +244,19 @@ function setupEventListeners() {
 }
 
 // Listen for auth state changes
-authManager.onAuthStateChange(async (event, session) => {
-  console.log('Auth state changed:', event, session?.user?.email);
-  
-  if (event === 'SIGNED_IN' && session?.user) {
-    authManager.currentUser = session.user;
-    await loadUserData();
-    uiManager.showMainSection();
-  } else if (event === 'SIGNED_OUT') {
-    authManager.currentUser = null;
-    authManager.subscribed = false;
-    usageManager.freeUsageCount = 0;
-    uiManager.showAuthSection();
-  }
-});
+if (authManager) {
+  authManager.onAuthStateChange(async (event, session) => {
+    console.log('Auth state changed:', event, session?.user?.email);
+    
+    if (event === 'SIGNED_IN' && session?.user) {
+      authManager.currentUser = session.user;
+      await loadUserData();
+      uiManager.showMainSection();
+    } else if (event === 'SIGNED_OUT') {
+      authManager.currentUser = null;
+      authManager.subscribed = false;
+      usageManager.freeUsageCount = 0;
+      uiManager.showAuthSection();
+    }
+  });
+}
