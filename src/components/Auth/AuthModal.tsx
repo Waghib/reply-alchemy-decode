@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -53,6 +52,27 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     return message;
   };
 
+  const checkUserExists = async (email: string) => {
+    try {
+      // First try to sign in with a dummy password to check if user exists
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: 'dummy-password-check'
+      });
+      
+      // If error contains "Invalid login credentials", user exists but password is wrong
+      // If error contains "Invalid email", user doesn't exist
+      if (error?.message?.includes('Invalid login credentials')) {
+        return true; // User exists
+      }
+      
+      return false; // User doesn't exist
+    } catch (error) {
+      console.error('Error checking user existence:', error);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -103,6 +123,29 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         setEmail('');
         setPassword('');
       } else {
+        // Check if user already exists before attempting signup
+        const userExists = await checkUserExists(email);
+        
+        if (userExists) {
+          toast({
+            title: 'Account Already Exists',
+            description: 'An account with this email already exists. Please sign in instead.',
+            variant: 'destructive',
+          });
+          
+          // Switch to sign in mode
+          setTimeout(() => {
+            setIsSignIn(true);
+            setPassword('');
+            toast({
+              title: 'Switched to Sign In',
+              description: 'Please enter your password to sign in.',
+            });
+          }, 2000);
+          
+          return;
+        }
+
         const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -128,17 +171,6 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         description: errorMessage,
         variant: 'destructive',
       });
-      
-      // If user already exists during signup, switch to sign in mode
-      if (!isSignIn && error.message?.includes('User already registered')) {
-        setTimeout(() => {
-          setIsSignIn(true);
-          toast({
-            title: 'Switched to Sign In',
-            description: 'Please sign in with your existing account.',
-          });
-        }, 2000);
-      }
     } finally {
       setLoading(false);
     }
