@@ -19,38 +19,126 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  const getReadableError = (error: any) => {
+    if (!error) return 'An unknown error occurred';
+    
+    const message = error.message || error.error_description || error.toString();
+    
+    // Map common Supabase errors to user-friendly messages
+    if (message.includes('User already registered')) {
+      return 'An account with this email already exists. Please sign in instead or use a different email address.';
+    }
+    if (message.includes('Invalid login credentials')) {
+      return 'Invalid email or password. Please check your credentials and try again.';
+    }
+    if (message.includes('Email not confirmed')) {
+      return 'Please check your email and click the confirmation link before signing in.';
+    }
+    if (message.includes('Password should be at least')) {
+      return 'Password must be at least 6 characters long.';
+    }
+    if (message.includes('Invalid email')) {
+      return 'Please enter a valid email address.';
+    }
+    if (message.includes('Too many requests')) {
+      return 'Too many attempts. Please wait a moment before trying again.';
+    }
+    if (message.includes('signup disabled')) {
+      return 'Account registration is currently disabled. Please contact support.';
+    }
+    if (message.includes('Email rate limit exceeded')) {
+      return 'Too many emails sent. Please wait before requesting another confirmation email.';
+    }
+    
+    return message;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Basic validation
+    if (!email || !password) {
+      toast({
+        title: 'Error',
+        description: 'Please enter both email and password.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      toast({
+        title: 'Error',
+        description: 'Password must be at least 6 characters long.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a valid email address.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       if (isSignIn) {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
+          email: email.trim(),
           password,
         });
         if (error) throw error;
-        toast({ title: 'Welcome back!', description: 'You have successfully signed in.' });
+        
+        toast({ 
+          title: 'Welcome back!', 
+          description: 'You have successfully signed in.' 
+        });
+        onOpenChange(false);
+        setEmail('');
+        setPassword('');
       } else {
         const { error } = await supabase.auth.signUp({
-          email,
+          email: email.trim(),
           password,
         });
         if (error) throw error;
+        
         toast({ 
           title: 'Account created!', 
-          description: 'Check your email to confirm your account.' 
+          description: 'Check your email to confirm your account before signing in.' 
         });
+        
+        // Switch to sign in mode after successful signup
+        setIsSignIn(true);
+        setEmail('');
+        setPassword('');
       }
-      onOpenChange(false);
-      setEmail('');
-      setPassword('');
     } catch (error: any) {
+      console.error('Authentication error:', error);
+      const errorMessage = getReadableError(error);
+      
       toast({
-        title: 'Error',
-        description: error.message,
+        title: isSignIn ? 'Sign In Failed' : 'Sign Up Failed',
+        description: errorMessage,
         variant: 'destructive',
       });
+      
+      // If user already exists during signup, switch to sign in mode
+      if (!isSignIn && error.message?.includes('User already registered')) {
+        setTimeout(() => {
+          setIsSignIn(true);
+          toast({
+            title: 'Switched to Sign In',
+            description: 'Please sign in with your existing account.',
+          });
+        }, 2000);
+      }
     } finally {
       setLoading(false);
     }
@@ -72,7 +160,9 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
               required
+              disabled={loading}
             />
           </div>
           <div className="space-y-2">
@@ -82,7 +172,10 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
               required
+              disabled={loading}
+              minLength={6}
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
@@ -91,8 +184,13 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           <Button
             type="button"
             variant="ghost"
-            onClick={() => setIsSignIn(!isSignIn)}
+            onClick={() => {
+              setIsSignIn(!isSignIn);
+              setEmail('');
+              setPassword('');
+            }}
             className="w-full"
+            disabled={loading}
           >
             {isSignIn ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
           </Button>
