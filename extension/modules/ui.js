@@ -1,7 +1,8 @@
 
-export class UIManager {
+export class UIModule {
   constructor() {
     this.elements = this.getElements();
+    this.isFormSubmitting = false;
   }
 
   getElements() {
@@ -23,7 +24,8 @@ export class UIManager {
       replyResult: document.getElementById('reply-result'),
       copyBtn: document.getElementById('copy-btn'),
       emailInput: document.getElementById('email'),
-      passwordInput: document.getElementById('password')
+      passwordInput: document.getElementById('password'),
+      authForm: document.getElementById('auth-form')
     };
   }
 
@@ -32,6 +34,9 @@ export class UIManager {
     if (this.elements.errorMessage) {
       this.elements.errorMessage.textContent = message;
       this.elements.errorMessage.classList.remove('hidden');
+      this.elements.errorMessage.style.backgroundColor = '#fef2f2';
+      this.elements.errorMessage.style.borderColor = '#fca5a5';
+      this.elements.errorMessage.style.color = '#dc2626';
       
       // Auto-hide error after 10 seconds
       setTimeout(() => {
@@ -66,16 +71,19 @@ export class UIManager {
   }
 
   showAuthSection() {
+    console.log('Showing auth section');
     if (this.elements.authSection) this.elements.authSection.classList.remove('hidden');
     if (this.elements.mainSection) this.elements.mainSection.classList.add('hidden');
   }
 
   showMainSection() {
+    console.log('Showing main section');
     if (this.elements.authSection) this.elements.authSection.classList.add('hidden');
     if (this.elements.mainSection) this.elements.mainSection.classList.remove('hidden');
   }
 
   updateAuthMode(isSignInMode) {
+    console.log('Updating auth mode to:', isSignInMode ? 'Sign In' : 'Sign Up');
     this.clearError();
     
     if (isSignInMode) {
@@ -90,6 +98,9 @@ export class UIManager {
   }
 
   setAuthSubmitState(loading, isSignUp = false) {
+    console.log('Setting auth submit state:', { loading, isSignUp });
+    this.isFormSubmitting = loading;
+    
     if (this.elements.authSubmit) {
       this.elements.authSubmit.disabled = loading;
       
@@ -109,8 +120,19 @@ export class UIManager {
   }
 
   clearAuthForm() {
-    if (this.elements.emailInput) this.elements.emailInput.value = '';
-    if (this.elements.passwordInput) this.elements.passwordInput.value = '';
+    console.log('Clearing auth form');
+    // Only clear if not currently submitting
+    if (!this.isFormSubmitting) {
+      if (this.elements.emailInput) this.elements.emailInput.value = '';
+      if (this.elements.passwordInput) this.elements.passwordInput.value = '';
+    }
+  }
+
+  getFormData() {
+    return {
+      email: this.elements.emailInput ? this.elements.emailInput.value.trim() : '',
+      password: this.elements.passwordInput ? this.elements.passwordInput.value : ''
+    };
   }
 
   setAnalyzeButtonState(loading) {
@@ -143,6 +165,31 @@ export class UIManager {
     if (this.elements.copyBtn) {
       const originalText = this.elements.copyBtn.textContent;
       this.elements.copyBtn.textContent = copied ? 'Copied!' : originalText;
+    }
+  }
+
+  updateUserDisplay(email, subscribed, dailyCount = 0, remainingCount = 3) {
+    console.log('Updating user display:', { email, subscribed, dailyCount, remainingCount });
+    
+    if (this.elements.userEmail) {
+      this.elements.userEmail.textContent = email;
+    }
+    
+    if (this.elements.dailyCount) {
+      this.elements.dailyCount.textContent = dailyCount.toString();
+    }
+    
+    if (this.elements.remainingCount) {
+      this.elements.remainingCount.textContent = subscribed ? '∞' : remainingCount.toString();
+    }
+    
+    // Show/hide upgrade notice
+    if (this.elements.upgradeNotice) {
+      if (!subscribed && remainingCount <= 0) {
+        this.elements.upgradeNotice.classList.remove('hidden');
+      } else {
+        this.elements.upgradeNotice.classList.add('hidden');
+      }
     }
   }
 }

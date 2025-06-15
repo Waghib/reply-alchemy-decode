@@ -4,12 +4,13 @@ import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2.45
 const SUPABASE_URL = "https://aodowsouzxzjuvroqule.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvZG93c291enh6anV2cm9xdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk5MDA1MjQsImV4cCI6MjA2NTQ3NjUyNH0.Ez5lIB3pF2Hguyn5BgPKhUUbSwL977-edi-wgrHFca4";
 
-export class AuthManager {
+export class AuthModule {
   constructor() {
     this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     this.currentUser = null;
     this.subscribed = false;
     this.isSignInMode = true;
+    console.log('AuthModule initialized');
   }
 
   async checkAuthStatus() {
